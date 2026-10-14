@@ -38,8 +38,8 @@ services:
       AUTH_REQUIRE_EMAIL_VERIFICATION: ${AUTH_REQUIRE_EMAIL_VERIFICATION:-true}
       TRUSTED_IP_HEADER: ${TRUSTED_IP_HEADER:-x-real-ip}
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?TOKEN_ENCRYPTION_KEY is required}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      EMAIL_FROM: ${EMAIL_FROM:-JobTrack <noreply@example.com>}
+      RESEND_API_KEY: ${RESEND_API_KEY:?RESEND_API_KEY is required (verification and password reset emails)}
+      EMAIL_FROM: ${EMAIL_FROM:?EMAIL_FROM is required (a sender on your Resend-verified domain)}
       RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
       STORAGE_DRIVER: s3
       S3_ENDPOINT: ${S3_ENDPOINT:?S3_ENDPOINT is required}
@@ -73,8 +73,8 @@ services:
       DATABASE_POOL_MAX: ${WORKER_DATABASE_POOL_MAX:-7}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-5}
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      EMAIL_FROM: ${EMAIL_FROM:-JobTrack <noreply@example.com>}
+      RESEND_API_KEY: ${RESEND_API_KEY:?RESEND_API_KEY is required (verification and password reset emails)}
+      EMAIL_FROM: ${EMAIL_FROM:?EMAIL_FROM is required (a sender on your Resend-verified domain)}
       STORAGE_DRIVER: s3
       S3_ENDPOINT: ${S3_ENDPOINT}
       S3_REGION: ${S3_REGION:-auto}

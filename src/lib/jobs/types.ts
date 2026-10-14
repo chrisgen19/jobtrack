@@ -19,6 +19,9 @@ export type JobPayloads = {
 
 export type JobName = keyof JobPayloads;
 
+/** Most storage keys one `delete_user_files` job carries; larger sets are split. */
+export const MAX_STORAGE_KEYS_PER_JOB = 1_000;
+
 export type JobSpec = {
   runAt?: Date;
   /** Graphile job_key: a newer job with the same key replaces a pending one. */

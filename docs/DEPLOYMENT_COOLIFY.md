@@ -64,8 +64,8 @@ URL valid for 60 seconds. The browser talks to R2 only for that redirect.
 3. Optional bounce handling: in Resend → Webhooks, add `https://jobs.example.com/api/webhooks/resend` for
    `email.bounced` and `email.complained`, and set `RESEND_WEBHOOK_SECRET` to the signing secret (`whsec_...`).
 
-`RESEND_API_KEY` is required in production when `AUTH_REQUIRE_EMAIL_VERIFICATION=true` (the default), otherwise
-nobody can verify their account. Without a key the worker logs a permanent email failure.
+`RESEND_API_KEY` and `EMAIL_FROM` are required: without them nobody can verify their account or reset a password.
+`compose.prod.yml` refuses to start until both are set.
 
 ## 5. Google Calendar (optional)
 

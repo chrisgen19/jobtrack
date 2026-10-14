@@ -1,10 +1,11 @@
 import type { Task } from "graphile-worker";
 import { z } from "zod";
 import { getStorage } from "@/lib/integrations/storage";
+import { MAX_STORAGE_KEYS_PER_JOB } from "@/lib/jobs/types";
 import { logger } from "@/lib/logger";
 
 const payloadSchema = z.object({
-  storageKeys: z.array(z.string().regex(/^users\/[^/]+\/[0-9a-f-]{36}$/)).max(5_000),
+  storageKeys: z.array(z.string().regex(/^users\/[^/]+\/[0-9a-f-]{36}$/)).max(MAX_STORAGE_KEYS_PER_JOB),
 });
 
 /**

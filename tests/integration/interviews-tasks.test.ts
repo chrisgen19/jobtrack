@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getApplicationDetail, listActivity } from "@/features/applications/data";
 import { getCalendarMonth } from "@/features/calendar/data";
+import { getDashboard } from "@/features/dashboard/data";
 import {
   cancelInterview,
   completeInterview,
@@ -236,5 +237,28 @@ describe("calendar", () => {
     const month = await getCalendarMonth("2026-11");
     expect(month.eventsByDate["2026-11-03"]!.map((event) => event.title)).toEqual(["Late call"]);
     expect(month.eventsByDate["2026-11-04"]!.map((event) => event.kind)).toEqual(["task"]);
+  });
+});
+
+describe("dashboard task metrics", () => {
+  beforeEach(resetDatabase);
+
+  it("counts every follow-up due today, not only the ones listed", async () => {
+    await setup();
+    const today = todayInTimeZone(TZ);
+    for (let index = 0; index < 10; index++) {
+      await createTask(
+        createTaskSchema.parse({
+          title: `Follow up ${index}`,
+          dueDate: addDaysToDateOnly(today, -(index % 2)),
+        }),
+      );
+    }
+    await createTask(createTaskSchema.parse({ title: "Tomorrow", dueDate: addDaysToDateOnly(today, 1) }));
+
+    const dashboard = await getDashboard();
+    expect(dashboard.metrics.followUpsDue).toBe(10);
+    expect(dashboard.metrics.overdueTasks).toBe(5);
+    expect(dashboard.focusTasks).toHaveLength(5);
   });
 });

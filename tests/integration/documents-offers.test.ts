@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAccountDelete, beforeAccountDelete } from "@/features/account/deletion";
 import { getAnalytics } from "@/features/analytics/data";
 import { getApplicationDetail, listActivity, recordEmployerResponse } from "@/features/applications/data";
 import {
@@ -27,6 +28,7 @@ import { createOpportunity } from "@/features/opportunities/data";
 import { quickAddSchema } from "@/features/opportunities/schemas";
 import { completeOnboarding, updateRegionalPreferences } from "@/features/workspace/data";
 import { setStorageForTests } from "@/lib/integrations/storage";
+import { MAX_STORAGE_KEYS_PER_JOB } from "@/lib/jobs/types";
 import { prisma } from "@/lib/prisma";
 import { createTestUser, resetDatabase } from "../support/db";
 import { createMemoryStorage } from "../support/memory-storage";
@@ -308,5 +310,40 @@ describe("analytics and export", () => {
     expect(json).not.toContain("storageKey");
     expect(json).not.toContain("password");
     expect(json).not.toContain("Alice");
+  });
+});
+
+describe("account deletion file cleanup", () => {
+  beforeEach(resetDatabase);
+
+  it("queues file cleanup in batches the worker accepts", async () => {
+    const { user } = await setup();
+    const total = MAX_STORAGE_KEYS_PER_JOB * 2 + 500;
+    await prisma.document.createMany({
+      data: Array.from({ length: total }, (_, index) => ({
+        userId: user.id,
+        kind: "RESUME" as const,
+        title: `Resume ${index}`,
+        originalFilename: "resume.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 1,
+        storageKey: `users/${user.id}/${crypto.randomUUID()}`,
+      })),
+    });
+
+    await beforeAccountDelete(user.id);
+    await afterAccountDelete(user.id);
+
+    // The public jobs view hides payloads, so read them from Graphile's own tables.
+    const jobs = await prisma.$queryRaw<{ payload: { storageKeys: string[] } }[]>`
+      select job.payload from graphile_worker._private_jobs job
+      join graphile_worker._private_tasks task on task.id = job.task_id
+      where task.identifier = 'delete_user_files'`;
+    expect(jobs.map((job) => job.payload.storageKeys.length).sort((a, b) => b - a)).toEqual([
+      MAX_STORAGE_KEYS_PER_JOB,
+      MAX_STORAGE_KEYS_PER_JOB,
+      500,
+    ]);
+    expect(new Set(jobs.flatMap((job) => job.payload.storageKeys)).size).toBe(total);
   });
 });

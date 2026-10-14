@@ -10,19 +10,27 @@ import { logger, errorMessage } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 /**
- * Queues an auth email on the durable job queue instead of sending inline:
- * the request returns in constant time (no account-enumeration timing
- * signal) and the worker retries provider failures.
+ * Queues an auth email on the durable job queue instead of calling the
+ * provider inline, so the response never waits on Resend and the worker
+ * retries provider failures. The insert is awaited, so the job is committed
+ * before Better Auth responds. A failed enqueue is logged and the response
+ * stays the same, so it never reveals whether an account exists.
  */
-function queueAuthEmail(kind: string, to: string, rendered: { subject: string; html: string; text: string }) {
-  void enqueueJob(
-    prisma,
-    "send_email",
-    { to, ...rendered, idempotencyKey: `auth:${kind}:${randomUUID()}` },
-    { maxAttempts: 8 },
-  ).catch((error: unknown) => {
+async function queueAuthEmail(
+  kind: string,
+  to: string,
+  rendered: { subject: string; html: string; text: string },
+): Promise<void> {
+  try {
+    await enqueueJob(
+      prisma,
+      "send_email",
+      { to, ...rendered, idempotencyKey: `auth:${kind}:${randomUUID()}` },
+      { maxAttempts: 8 },
+    );
+  } catch (error) {
     logger.error("failed to enqueue auth email", { kind, error: errorMessage(error) });
-  });
+  }
 }
 
 export function createAuth() {
@@ -43,12 +51,16 @@ export function createAuth() {
       revokeSessionsOnPasswordReset: true,
       resetPasswordTokenExpiresIn: 60 * 60,
       sendResetPassword: async ({ user, url }) => {
-        queueAuthEmail("reset", user.email, resetPasswordEmail(user.name, url));
+        await queueAuthEmail("reset", user.email, resetPasswordEmail(user.name, url));
       },
       // Sign-up answers the same way for existing emails (no enumeration);
       // the real owner is told about the attempt instead.
       onExistingUserSignUp: async ({ user }) => {
-        queueAuthEmail("existing", user.email, existingAccountEmail(user.name, `${appEnv().APP_URL}/login`));
+        await queueAuthEmail(
+          "existing",
+          user.email,
+          existingAccountEmail(user.name, `${appEnv().APP_URL}/login`),
+        );
       },
     },
     emailVerification: {
@@ -56,7 +68,7 @@ export function createAuth() {
       autoSignInAfterVerification: true,
       expiresIn: 60 * 60,
       sendVerificationEmail: async ({ user, url }) => {
-        queueAuthEmail("verify", user.email, verificationEmail(user.name, url));
+        await queueAuthEmail("verify", user.email, verificationEmail(user.name, url));
       },
     },
     user: {

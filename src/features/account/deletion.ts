@@ -1,6 +1,7 @@
 import { decryptSecret } from "@/lib/crypto";
 import { revokeToken } from "@/lib/integrations/google/client";
 import { enqueueJob } from "@/lib/jobs/queue";
+import { MAX_STORAGE_KEYS_PER_JOB } from "@/lib/jobs/types";
 import { errorMessage, logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
@@ -39,7 +40,10 @@ export async function afterAccountDelete(userId: string): Promise<void> {
   logger.info("account deleted", { userId, files: storageKeys.length });
   if (storageKeys.length === 0) return;
   try {
-    await enqueueJob(prisma, "delete_user_files", { storageKeys }, { maxAttempts: 25 });
+    for (let start = 0; start < storageKeys.length; start += MAX_STORAGE_KEYS_PER_JOB) {
+      const batch = storageKeys.slice(start, start + MAX_STORAGE_KEYS_PER_JOB);
+      await enqueueJob(prisma, "delete_user_files", { storageKeys: batch }, { maxAttempts: 25 });
+    }
   } catch (error) {
     logger.error("failed to queue file cleanup after account deletion", {
       userId,
