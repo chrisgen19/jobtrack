@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 /** Input/select/textarea styling from the mockup's form fields. */
 const CONTROL =
-  "min-h-10 rounded-[9px] border-[#dfe7df] bg-white px-3 text-[13px] text-[#304a3b] focus-visible:border-[#5b9e77] focus-visible:ring-[#1e8f5620]";
+  "min-h-10 rounded-[9px] border-[#dfe7df] bg-white px-3 text-[13px] text-[#304a3b] md:text-[13px] focus-visible:border-[#5b9e77] focus-visible:ring-[#1e8f5620]";
 
 interface FormFieldProps {
   id: string;
@@ -50,7 +50,7 @@ export function TextArea({ className, ...props }: ComponentProps<typeof Textarea
 }
 
 const SELECT_WRAPPER =
-  "w-full [&>select]:h-10 [&>select]:rounded-[9px] [&>select]:border-[#dfe7df] [&>select]:bg-white [&>select]:pl-3 [&>select]:text-[13px] [&>select]:text-[#304a3b] [&>select:focus-visible]:border-[#5b9e77]";
+  "w-full [&>select]:h-10 [&>select]:rounded-[9px] [&>select]:border-[#dfe7df] [&>select]:bg-white [&>select]:pl-3 [&>select]:text-[13px] md:[&>select]:text-[13px] [&>select]:text-[#304a3b] [&>select:focus-visible]:border-[#5b9e77]";
 
 type Option = { value: string; label: string };
 

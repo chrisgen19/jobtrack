@@ -7,7 +7,7 @@ import { isSupportedCurrency, MONEY_PATTERN, normalizeMoneyInput } from "@/lib/m
  * arrive as strings; empty strings mean "not provided".
  */
 
-const emptyToUndefined = (value: unknown) =>
+export const emptyToUndefined = (value: unknown) =>
   typeof value === "string" && value.trim() === "" ? undefined : value;
 
 /** Trimmed text that is optional; "" becomes undefined. */
@@ -81,3 +81,7 @@ export const stringList = (maxItems: number, maxLength: number) =>
       .transform((items) => [...new Set(items.filter(Boolean))])
       .refine((items) => items.length <= maxItems, { error: `At most ${maxItems} items.` }),
   );
+
+/** Optional enum from a Prisma enum object; "" becomes undefined. */
+export const optionalEnum = <T extends Record<string, string>>(values: T) =>
+  z.preprocess(emptyToUndefined, z.enum(values).optional());

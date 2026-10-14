@@ -46,14 +46,26 @@ sign out + password reset, mobile navigation).
 
 ## Milestone 2: Core job tracker
 
-- [ ] Company CRUD with find-or-create from Quick Add
-- [ ] Opportunity CRUD, archive/restore, duplicate warnings
-- [ ] Applications: apply, reapply, attempt history
-- [ ] Custom pipeline stages: add, rename, reorder, recolor, disable, safe delete
-- [ ] Stage changes in a transaction with activity events
-- [ ] Jobs table (TanStack Table) with search/filters in the URL
-- [ ] Kanban board (dnd-kit) with an accessible stage menu
-- [ ] Job detail and application detail pages
+- [x] Company CRUD (`/contacts`) with find-or-create by normalized name from job forms; deleting a company with jobs is refused
+- [x] Opportunity CRUD: Quick Add dialog (title + company required), full edit page, archive/restore, permanent delete with confirmation, tags and required skills
+- [x] Duplicate warnings (same normalized posting URL, or same company + title) via an owner-scoped GET route; never blocks saving
+- [x] Applications: mark as applied (date, method, submitted via, starting stage), reapply with numbered attempts, history of every attempt
+- [x] Status vs outcome: pause/resume, close with an explicit outcome (no auto-rejection), reopen clears outcome; DB CHECK enforces it
+- [x] Employer response date (for response-time analytics) and timeline notes
+- [x] Custom pipeline stages (`/settings/pipeline`): add, rename, recolour, reorder, disable, delete with a required move target when in use; category fixed for analytics
+- [x] Stage changes in a transaction with `STAGE_CHANGED` activity events storing name snapshots (renames never rewrite history)
+- [x] Suggested follow-up task after applying (editable/dismissible `SUGGESTED` task, never an outgoing email)
+- [x] Jobs table (TanStack Table v9, client sorting) with view/search/stage/priority/work/source filters in the URL
+- [x] Kanban board (dnd-kit): virtual Saved column, optimistic moves, keyboard dragging between columns, live announcements, "Move to" menu on every card, drop a saved job on a stage to record an application
+- [x] Job detail page, application detail page (overview + timeline)
+- [x] CSV export of jobs and attempts (RFC 4180, formula-injection safe)
+
+Verification: `pnpm typecheck`, `pnpm lint`, `pnpm test` (34 tests incl. cross-user isolation, stage-delete moves,
+duplicate hints, filters), E2E `tracker.spec.ts` (Quick Add, duplicate hint, apply, stage select, timeline, custom
+stage, Kanban menu move and real mouse drag-and-drop).
+
+Known gaps carried forward: settings tabs for Notifications, Integrations and Account link to pages built in
+Milestones 4-5; deleting a job/interview does not yet queue Google Calendar event removal (Milestone 5).
 
 ## Milestone 3: Interviews and productivity
 

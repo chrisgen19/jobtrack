@@ -1,7 +1,10 @@
 import { Suspense } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { UserMenu } from "@/components/layout/user-menu";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QuickAddButton } from "@/features/opportunities/components/quick-add-button";
+import { getQuickAddOptions } from "@/features/opportunities/data";
 import { countDueTasks } from "@/features/tasks/data";
 import { requireUser } from "@/lib/auth/session";
 
@@ -19,6 +22,17 @@ export default function WorkspaceLayout({ children }: LayoutProps<"/">) {
           </Suspense>
         ),
       }}
+      topbarActions={
+        <Suspense
+          fallback={
+            <Button disabled className="px-2.5 sm:px-3.5">
+              Add a job
+            </Button>
+          }
+        >
+          <TopbarQuickAdd />
+        </Suspense>
+      }
       sidebarFooter={
         <Suspense fallback={<Skeleton className="mx-2 mt-4 h-10 rounded-lg" />}>
           <SidebarProfile />
@@ -28,6 +42,10 @@ export default function WorkspaceLayout({ children }: LayoutProps<"/">) {
       {children}
     </AppShell>
   );
+}
+
+async function TopbarQuickAdd() {
+  return <QuickAddButton options={await getQuickAddOptions()} />;
 }
 
 async function SidebarProfile() {
