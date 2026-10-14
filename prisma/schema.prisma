@@ -767,7 +767,8 @@ model Document {
   updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  replaces     Document?             @relation("DocumentVersions", fields: [replacesId], references: [id], onDelete: SetNull)
+  // Tenant-scoped; the migration narrows SetNull to replaces_id (PostgreSQL 15+).
+  replaces     Document?             @relation("DocumentVersions", fields: [userId, replacesId], references: [userId, id], onDelete: SetNull)
   replacedBy   Document[]            @relation("DocumentVersions")
   applications ApplicationDocument[]
 
@@ -880,8 +881,12 @@ model Notification {
   createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reminder Reminder? @relation(fields: [reminderId], references: [id], onDelete: SetNull)
+  // Tenant-scoped; the migration narrows SetNull to reminder_id (PostgreSQL 15+).
+  reminder Reminder? @relation(fields: [userId, reminderId], references: [userId, id], onDelete: SetNull)
 
+  // Required by Prisma for the one-to-one composite relation above; implied
+  // by reminder_id being unique, which stays the idempotency guarantee.
+  @@unique([userId, reminderId])
   @@index([userId, readAt, createdAt])
   @@map("notifications")
 }
@@ -900,7 +905,8 @@ model NotificationDelivery {
   createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reminder Reminder? @relation(fields: [reminderId], references: [id], onDelete: SetNull)
+  // Tenant-scoped; the migration narrows SetNull to reminder_id (PostgreSQL 15+).
+  reminder Reminder? @relation(fields: [userId, reminderId], references: [userId, id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([providerMessageId])

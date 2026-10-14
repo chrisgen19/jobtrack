@@ -147,6 +147,39 @@ describe("documents", () => {
     >`select task_identifier from graphile_worker.jobs`;
     expect(jobs.map((job) => job.task_identifier)).toContain("delete_user_files");
   });
+
+  it("keeps a newer version when the version it replaced is deleted", async () => {
+    storage.failDeletes = false;
+    const { user } = await setup();
+    const first = await upload("Resume");
+    const second = await upload("Resume", first);
+    await deleteDocument(first);
+    expect(await prisma.document.findUniqueOrThrow({ where: { id: second } })).toMatchObject({
+      userId: user.id,
+      replacesId: null,
+    });
+  });
+
+  it("rejects a version link to another user's document at the database level", async () => {
+    storage.failDeletes = false;
+    await setup("Alice");
+    const aliceDocument = await upload("Alice resume");
+    const { user: bob } = await setup("Bob", "Beta");
+    await expect(
+      prisma.document.create({
+        data: {
+          userId: bob.id,
+          kind: "RESUME",
+          title: "Bob resume",
+          originalFilename: "bob.pdf",
+          mimeType: "application/pdf",
+          sizeBytes: 1,
+          storageKey: `users/${bob.id}/${crypto.randomUUID()}`,
+          replacesId: aliceDocument,
+        },
+      }),
+    ).rejects.toThrow(/foreign key/i);
+  });
 });
 
 describe("contacts", () => {

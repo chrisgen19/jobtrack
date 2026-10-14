@@ -245,6 +245,50 @@ describe("reminder delivery", () => {
     expect((await prisma.reminder.findUniqueOrThrow({ where: { id: reminder.id } })).status).toBe("SENT");
   });
 
+  it("keeps delivered notifications and the delivery log when the interview is deleted", async () => {
+    const { user, applicationId } = await setup();
+    await updateNotificationPreferences({ ...DEFAULT_PREFS, emailReminders: true });
+    const interviewId = await scheduleInterview(applicationId);
+    const reminders = await prisma.reminder.findMany({ where: { interviewId } });
+    expect(reminders.map((reminder) => reminder.channel).sort()).toEqual(["EMAIL", "IN_APP"]);
+    for (const reminder of reminders) {
+      expect(await deliverReminder(reminder.id, { number: 1, max: 8 })).toBe("sent");
+    }
+
+    await deleteInterview(interviewId);
+    expect(await prisma.reminder.count({ where: { interviewId } })).toBe(0);
+    const notifications = await prisma.notification.findMany({ where: { userId: user.id } });
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toMatchObject({ userId: user.id, reminderId: null });
+    const deliveries = await prisma.notificationDelivery.findMany({ where: { userId: user.id } });
+    expect(deliveries.map((delivery) => delivery.channel)).toContain("EMAIL");
+    expect(deliveries.every((delivery) => delivery.reminderId === null)).toBe(true);
+  });
+
+  it("rejects notification and delivery links to another user's reminder at the database level", async () => {
+    const { applicationId } = await setup("Alice");
+    const interviewId = await scheduleInterview(applicationId);
+    const aliceReminder = await prisma.reminder.findFirstOrThrow({ where: { interviewId } });
+    const { user: bob } = await setup("Bob");
+    await expect(
+      prisma.notification.create({
+        data: { userId: bob.id, reminderId: aliceReminder.id, type: "INTERVIEW_REMINDER", title: "Leak" },
+      }),
+    ).rejects.toThrow(/foreign key/i);
+    await expect(
+      prisma.notificationDelivery.create({
+        data: {
+          userId: bob.id,
+          reminderId: aliceReminder.id,
+          channel: "EMAIL",
+          status: "SENT",
+          provider: "resend",
+          idempotencyKey: "cross-tenant-test",
+        },
+      }),
+    ).rejects.toThrow(/foreign key/i);
+  });
+
   it("skips a reminder whose interview changed without a re-plan (stale worker)", async () => {
     const { applicationId } = await setup();
     const interviewId = await scheduleInterview(applicationId);
