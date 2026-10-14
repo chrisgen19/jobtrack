@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { errorMessage, logger } from "@/lib/logger";
 import { rateLimit } from "@/lib/rate-limit";
 import { revalidateWorkspace } from "@/lib/revalidate";
+import { isSameOrigin } from "@/lib/same-origin";
 
 /**
  * Private document upload (multipart/form-data). The server reads the file,
@@ -13,6 +14,7 @@ import { revalidateWorkspace } from "@/lib/revalidate";
  * private bucket. Bytes never touch the public directory.
  */
 export async function POST(request: Request) {
+  if (!isSameOrigin(request)) return Response.json({ error: "Forbidden" }, { status: 403 });
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -24,7 +26,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const declaredLength = Number(request.headers.get("content-length") ?? 0);
+  // Reject before reading the body: unknown (chunked) or oversized lengths.
+  const declaredLength = Number(request.headers.get("content-length") ?? NaN);
+  if (!Number.isFinite(declaredLength))
+    return Response.json({ error: "Missing Content-Length." }, { status: 411 });
   if (declaredLength > maxUploadBytes() + 64 * 1024) {
     return Response.json({ error: "File is too large." }, { status: 413 });
   }

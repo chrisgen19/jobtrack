@@ -51,6 +51,8 @@ async function main(): Promise<void> {
     pollInterval: 2_000,
     taskList: taskList as Parameters<typeof run>[0]["taskList"],
     logger: graphileLogger,
+    // No cron jobs: every job is enqueued by the app with its own run_at.
+    crontab: "",
   });
 
   await heartbeat();

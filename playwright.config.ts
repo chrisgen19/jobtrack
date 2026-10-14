@@ -26,9 +26,11 @@ export default defineConfig({
     { name: "mobile", use: { ...devices["Pixel 7"] }, testMatch: /mobile\.spec\.ts/ },
   ],
   webServer: {
-    command: process.env.E2E_SKIP_BUILD ? "pnpm start --port 3100" : "pnpm build && pnpm start --port 3100",
+    command: process.env.E2E_SKIP_BUILD
+      ? "node .next/standalone/server.js"
+      : "pnpm build && node .next/standalone/server.js",
     url: `${testEnv.APP_URL}/api/health/ready`,
-    env: { ...testEnv },
+    env: { ...testEnv, PORT: "3100", HOSTNAME: "127.0.0.1" },
     timeout: 300_000,
     reuseExistingServer: !process.env.CI,
   },

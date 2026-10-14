@@ -1,0 +1,85 @@
+# Production stack for Coolify (Docker Compose build pack).
+#
+# PostgreSQL is NOT part of this file: create it as a separate Coolify
+# database resource and set DATABASE_URL to its *internal* URL. Enable
+# "Connect to Predefined Network" on this resource so the containers can
+# reach the database. See docs/DEPLOYMENT_COOLIFY.md.
+#
+# Order on every deploy: migrate (one-off, must succeed) -> web + worker.
+
+services:
+  migrate:
+    build:
+      context: .
+      target: migrate
+    restart: "no"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+
+  web:
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "3000"
+    stop_grace_period: 30s
+    environment:
+      # Coolify: assign the domain to this service (port 3000) in the UI, or
+      # use SERVICE_FQDN_WEB_3000. HTTPS is terminated by Coolify's proxy.
+      APP_URL: ${APP_URL:?APP_URL is required}
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_POOL_MAX: ${WEB_DATABASE_POOL_MAX:-10}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
+      BETTER_AUTH_URL: ${APP_URL}
+      AUTH_REQUIRE_EMAIL_VERIFICATION: ${AUTH_REQUIRE_EMAIL_VERIFICATION:-true}
+      TRUSTED_IP_HEADER: ${TRUSTED_IP_HEADER:-x-real-ip}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?TOKEN_ENCRYPTION_KEY is required}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-JobTrack <noreply@example.com>}
+      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
+      STORAGE_DRIVER: s3
+      S3_ENDPOINT: ${S3_ENDPOINT:?S3_ENDPOINT is required}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_BUCKET: ${S3_BUCKET:?S3_BUCKET is required}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID is required}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY is required}
+      DOCUMENT_MAX_MB: ${DOCUMENT_MAX_MB:-10}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health/ready > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    # No ports: the worker only talks to PostgreSQL, Resend, R2 and Google.
+    stop_grace_period: 90s
+    environment:
+      APP_URL: ${APP_URL}
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_POOL_MAX: ${WORKER_DATABASE_POOL_MAX:-7}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-5}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-JobTrack <noreply@example.com>}
+      STORAGE_DRIVER: s3
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}

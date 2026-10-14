@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { connection, NextResponse } from "next/server";
 import { createOAuthState, OAUTH_COOKIE, OAUTH_COOKIE_PATH } from "@/features/integrations/oauth-state";
 import { getCurrentUser } from "@/lib/auth/session";
 import { appEnv, authEnv } from "@/lib/env";
@@ -6,6 +6,7 @@ import { buildAuthUrl, isGoogleConfigured } from "@/lib/integrations/google/clie
 
 /** Starts the explicit "Connect Google Calendar" consent flow. */
 export async function GET() {
+  await connection();
   const user = await getCurrentUser();
   const { APP_URL, NODE_ENV } = appEnv();
   if (!user) return NextResponse.redirect(new URL("/login", APP_URL));

@@ -80,3 +80,15 @@ export function resetPasswordEmail(name: string, url: string): RenderedEmail {
 export function reminderEmail(params: { heading: string; lines: string[]; url: string }): RenderedEmail {
   return render(params.heading, params.heading, params.lines, { label: "Open in JobTrack", url: params.url });
 }
+
+export function existingAccountEmail(name: string, loginUrl: string): RenderedEmail {
+  return render(
+    "Someone tried to sign up with your email",
+    "You already have a JobTrack account",
+    [
+      `Hi ${name}, someone (maybe you) tried to create a new JobTrack account with this email address.`,
+      "No new account was created. If it was you, sign in or reset your password instead. If it wasn't, you can ignore this email.",
+    ],
+    { label: "Sign in", url: loginUrl },
+  );
+}

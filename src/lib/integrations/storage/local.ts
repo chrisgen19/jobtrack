@@ -10,30 +10,31 @@ import type { ObjectStorage } from "./types";
 export function createLocalStorage(
   options: { root?: string; allowInProduction?: boolean } = {},
 ): ObjectStorage {
-  const root = options.root ?? path.join(process.cwd(), ".data", "uploads");
+  const root = options.root ?? path.join(/*turbopackIgnore: true*/ process.cwd(), ".data", "uploads");
   if (process.env.NODE_ENV === "production" && !options.allowInProduction) {
     throw new Error("The local storage driver is for development only. Set STORAGE_DRIVER=s3 in production.");
   }
   const resolve = (key: string) => {
-    const target = path.resolve(root, key);
-    if (!target.startsWith(path.resolve(root) + path.sep)) throw new Error("Invalid storage key");
+    const target = path.resolve(/*turbopackIgnore: true*/ root, key);
+    if (!target.startsWith(path.resolve(/*turbopackIgnore: true*/ root) + path.sep))
+      throw new Error("Invalid storage key");
     return target;
   };
   return {
     driver: "local",
     async put(key, body) {
       const target = resolve(key);
-      await mkdir(path.dirname(target), { recursive: true });
-      await writeFile(target, body, { flag: "wx" });
+      await mkdir(/*turbopackIgnore: true*/ path.dirname(target), { recursive: true });
+      await writeFile(/*turbopackIgnore: true*/ target, body, { flag: "wx" });
     },
     async delete(key) {
-      await rm(resolve(key), { force: true });
+      await rm(/*turbopackIgnore: true*/ resolve(key), { force: true });
     },
     async signedDownloadUrl() {
       return null;
     },
     async read(key) {
-      return readFile(resolve(key));
+      return readFile(/*turbopackIgnore: true*/ resolve(key));
     },
   };
 }

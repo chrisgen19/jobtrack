@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { connection, NextResponse, type NextRequest } from "next/server";
 import { saveGoogleConnection } from "@/features/integrations/data";
 import { OAUTH_COOKIE, OAUTH_COOKIE_PATH, verifyOAuthState } from "@/features/integrations/oauth-state";
 import { DomainError } from "@/lib/action-result";
@@ -10,6 +10,7 @@ import { revalidateWorkspace } from "@/lib/revalidate";
 
 /** Google redirects here after consent. Verifies state, stores encrypted tokens. */
 export async function GET(request: NextRequest) {
+  await connection();
   const { APP_URL } = appEnv();
   const back = (query: string) => {
     const response = NextResponse.redirect(new URL(`/settings/integrations?${query}`, APP_URL));

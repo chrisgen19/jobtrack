@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node --env-file-if-exists=.env .next/standalone/server.js",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -22,7 +22,8 @@
     "worker:dev": "tsx watch src/worker/index.ts",
     "worker:start": "tsx src/worker/index.ts",
     "auth:generate": "pnpm dlx auth@1.7.7 generate --config scripts/auth-schema.config.ts --output scripts/auth-models.generated.prisma -y",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "postbuild": "cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1150.0",

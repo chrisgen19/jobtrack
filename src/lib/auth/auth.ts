@@ -3,7 +3,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { randomUUID } from "node:crypto";
 import { afterAccountDelete, beforeAccountDelete } from "@/features/account/deletion";
-import { resetPasswordEmail, verificationEmail } from "@/lib/email/templates";
+import { existingAccountEmail, resetPasswordEmail, verificationEmail } from "@/lib/email/templates";
 import { appEnv, authEnv } from "@/lib/env";
 import { enqueueJob } from "@/lib/jobs/queue";
 import { logger, errorMessage } from "@/lib/logger";
@@ -44,6 +44,11 @@ export function createAuth() {
       resetPasswordTokenExpiresIn: 60 * 60,
       sendResetPassword: async ({ user, url }) => {
         queueAuthEmail("reset", user.email, resetPasswordEmail(user.name, url));
+      },
+      // Sign-up answers the same way for existing emails (no enumeration);
+      // the real owner is told about the attempt instead.
+      onExistingUserSignUp: async ({ user }) => {
+        queueAuthEmail("existing", user.email, existingAccountEmail(user.name, `${appEnv().APP_URL}/login`));
       },
     },
     emailVerification: {

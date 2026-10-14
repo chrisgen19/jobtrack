@@ -1,9 +1,9 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { DEFAULT_PIPELINE_NAME, DEFAULT_STAGES } from "@/features/pipelines/defaults";
+import { ensureDefaultPipeline } from "@/features/pipelines/create-default";
 import { requireUser, type CurrentUser } from "@/lib/auth/session";
-import { prisma, type DbClient } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 export type WorkspacePreferences = {
   timezone: string;
@@ -59,35 +59,6 @@ export async function getOnboardingState(): Promise<{ user: CurrentUser; onboard
     select: { onboardedAt: true },
   });
   return { user, onboarded: Boolean(preferences?.onboardedAt) };
-}
-
-/**
- * Creates the default pipeline and stages for a user if they have none.
- * Safe to call repeatedly (and concurrently: the partial unique index on
- * pipelines(user_id) WHERE is_default rejects a second default).
- */
-export async function ensureDefaultPipeline(db: DbClient, userId: string): Promise<string> {
-  const existing = await db.pipeline.findFirst({
-    where: { userId, isDefault: true },
-    select: { id: true },
-  });
-  if (existing) return existing.id;
-
-  const pipeline = await db.pipeline.create({
-    data: { userId, name: DEFAULT_PIPELINE_NAME, isDefault: true },
-    select: { id: true },
-  });
-  await db.pipelineStage.createMany({
-    data: DEFAULT_STAGES.map((stage, index) => ({
-      userId,
-      pipelineId: pipeline.id,
-      name: stage.name,
-      category: stage.category,
-      color: stage.color,
-      position: index,
-    })),
-  });
-  return pipeline.id;
 }
 
 /**

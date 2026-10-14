@@ -131,6 +131,38 @@ development outbox only. Verify both after adding credentials (see docs/DEPLOYME
 
 ## Milestone 6: Production deployment
 
-- [ ] Multi-stage Dockerfile, `.dockerignore`, `compose.prod.yml`
-- [ ] Migration job ordering, Coolify guide, backup and recovery guide
-- [ ] Security review and full E2E definition-of-done run
+- [x] `next.config.ts`: standalone output, security headers (CSP, HSTS in production, frame/nosniff/referrer/permissions), no `X-Powered-By`
+- [x] Multi-stage `Dockerfile` with `web` (standalone, non-root, health check), `worker` (non-root, heartbeat health check, graceful SIGTERM) and `migrate` (one-off `prisma migrate deploy` + Graphile schema) targets; `.dockerignore` keeps secrets and local data out of the build context
+- [x] `compose.prod.yml` for Coolify: migrate must succeed before web/worker start, no published ports, required-variable guards, bounded pools per process
+- [x] Health endpoints `/api/health` (liveness) and `/api/health/ready` (database)
+- [x] Demo seed (`pnpm db:seed`): two fictional users, 16 jobs in PHP/AUD/USD, every stage, a reapplication, rejected and withdrawn attempts, upcoming/completed/rescheduled interviews, tasks, an offer, resume versions with placeholder PDFs, contacts, timelines; refuses production unless `ALLOW_DEMO_SEED=true`
+- [x] Error boundaries without internal details; Origin check on the upload POST; `Content-Length` required for uploads; existing-account sign-up notifies the owner instead of revealing the account
+- [x] CI workflow (`.github/workflows/ci.yml`): typecheck, lint, format, migration drift check, Vitest, build, Playwright, Docker builds
+- [x] Docs: `docs/DEPLOYMENT_COOLIFY.md`, `docs/BACKUP_AND_RECOVERY.md`, `docs/SECURITY.md`, README
+
+Verification:
+
+- `pnpm build` with no `.env` present (the Docker build condition) passes.
+- Docker: all three images built locally; `migrate` applied migrations to an empty database; `web` served
+  `/api/health/ready` = ready, security headers present, sign-up worked; `worker` (as `node`) processed the
+  queued email job, refused to send without `RESEND_API_KEY` in production (permanent failure, no retry loop) and
+  shut down gracefully on SIGTERM.
+- Full Playwright suite (10 specs incl. `definition-of-done.spec.ts`, the 14-step workflow with isolation).
+- Not verified: an actual Coolify deployment, real R2, Resend and Google credentials (none available here), and the
+  GitHub Actions workflow (not pushed).
+
+## Definition of Done status
+
+| #   | Step                                                        | Status                                                                   |
+| --- | ----------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 1-2 | Register, verify, sign in                                   | Done (E2E)                                                               |
+| 3-4 | Save Full-Stack Developer with company, salary, description | Done (E2E)                                                               |
+| 5   | Mark as applied                                             | Done (E2E)                                                               |
+| 6   | Attach a resume                                             | Done (E2E, local storage driver; R2 driver untested without credentials) |
+| 7   | Update hiring stage                                         | Done (E2E)                                                               |
+| 8-9 | Multiple interviews, reschedule                             | Done (E2E)                                                               |
+| 10  | Reminder when configured                                    | Done in-app (E2E, real worker); email path tested with a mocked provider |
+| 11  | Create and complete follow-up task                          | Done (E2E)                                                               |
+| 12  | Record job offer                                            | Done (E2E)                                                               |
+| 13  | Updated analytics                                           | Done (E2E)                                                               |
+| 14  | Another user cannot access the data                         | Done (E2E + integration tests)                                           |
