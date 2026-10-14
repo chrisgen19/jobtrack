@@ -1,4 +1,5 @@
 import { storageEnv } from "@/lib/env";
+import { logger } from "@/lib/logger";
 import { createLocalStorage } from "./local";
 import { createS3Storage } from "./s3";
 import type { ObjectStorage } from "./types";
@@ -20,7 +21,16 @@ export function getStorage(): ObjectStorage {
           accessKeyId: env.S3_ACCESS_KEY_ID!,
           secretAccessKey: env.S3_SECRET_ACCESS_KEY!,
         })
-      : createLocalStorage();
+      : createLocalStorage({ allowInProduction: env.UNSAFE_ALLOW_LOCAL_STORAGE });
+  if (
+    env.STORAGE_DRIVER === "local" &&
+    env.UNSAFE_ALLOW_LOCAL_STORAGE &&
+    process.env.NODE_ENV === "production"
+  ) {
+    logger.warn(
+      "UNSAFE_ALLOW_LOCAL_STORAGE is on: documents are stored on this container's disk. Test use only.",
+    );
+  }
   return storage;
 }
 

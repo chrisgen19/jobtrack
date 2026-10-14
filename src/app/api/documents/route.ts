@@ -39,12 +39,17 @@ export async function POST(request: Request) {
   if (!(file instanceof File)) return Response.json({ error: "Choose a file to upload." }, { status: 400 });
   if (file.size > maxUploadBytes()) return Response.json({ error: "File is too large." }, { status: 413 });
 
+  // Absent fields are null in FormData; the schema treats them as optional.
+  const field = (name: string) => {
+    const value = form.get(name);
+    return typeof value === "string" ? value : undefined;
+  };
   const meta = documentMetaSchema.safeParse({
-    kind: form.get("kind"),
-    title: form.get("title") || file.name.replace(/\.[^.]+$/, ""),
-    versionLabel: form.get("versionLabel"),
-    notes: form.get("notes"),
-    replacesId: form.get("replacesId"),
+    kind: field("kind"),
+    title: field("title") || file.name.replace(/\.[^.]+$/, ""),
+    versionLabel: field("versionLabel"),
+    notes: field("notes"),
+    replacesId: field("replacesId"),
   });
   if (!meta.success) {
     return Response.json(

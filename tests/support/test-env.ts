@@ -16,6 +16,8 @@ export const testEnv: Record<string, string> = {
   AUTH_RATE_LIMIT: "off",
   TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
   STORAGE_DRIVER: "local",
+  // The E2E server is a production build; allow the local driver there only.
+  UNSAFE_ALLOW_LOCAL_STORAGE: "true",
   RESEND_API_KEY: "",
   GOOGLE_CLIENT_ID: "",
   GOOGLE_CLIENT_SECRET: "",

@@ -161,7 +161,7 @@ export async function changeStageInTx(
       status: true,
       pipelineId: true,
       opportunityId: true,
-      stage: { select: { id: true, name: true } },
+      stage: { select: { id: true, name: true, category: true } },
     },
   });
   if (!application) throw new NotFoundError("Application");
@@ -171,7 +171,7 @@ export async function changeStageInTx(
 
   const target = await tx.pipelineStage.findFirst({
     where: { id: stageId, userId, pipelineId: application.pipelineId },
-    select: { id: true, name: true, isActive: true },
+    select: { id: true, name: true, category: true, isActive: true },
   });
   if (!target) throw new DomainError("That stage is not part of this application's pipeline.");
   if (!target.isActive && !options.allowInactiveTarget) throw new DomainError("That stage is disabled.");
@@ -189,8 +189,10 @@ export async function changeStageInTx(
     details: {
       fromStageId: application.stage.id,
       fromStageName: application.stage.name,
+      fromStageCategory: application.stage.category,
       toStageId: target.id,
       toStageName: target.name,
+      toStageCategory: target.category,
       ...(options.reason ? { reason: options.reason } : {}),
     },
   });

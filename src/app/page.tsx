@@ -8,6 +8,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
+import { DeletedNotice } from "@/components/shared/deleted-notice";
 import { Brand } from "@/components/layout/brand";
 import { Button } from "@/components/ui/button";
 
@@ -50,6 +52,9 @@ export default function HomePage() {
           </Button>
         </nav>
       </header>
+      <Suspense>
+        <DeletedNotice />
+      </Suspense>
       <main className="mx-auto max-w-6xl px-4 pt-12 pb-20 sm:px-8 sm:pt-20">
         <p className="text-[11px] font-bold tracking-[1.35px] text-[#7a9284] uppercase">Your career HQ</p>
         <h1 className="mt-3 max-w-3xl text-[36px] leading-[1.08] font-bold tracking-[-1.8px] text-heading sm:text-[54px]">

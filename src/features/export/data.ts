@@ -118,3 +118,74 @@ export async function getApplicationCsvRows(): Promise<CsvValue[][]> {
   }
   return rows;
 }
+
+/**
+ * Full structured backup of the signed-in user's workspace. Contains no
+ * password hashes, OAuth tokens or storage keys; document bytes are
+ * downloaded separately from the library.
+ */
+export async function getWorkspaceExport() {
+  const { user, preferences } = await requireWorkspace();
+  const where = { userId: user.id };
+  const [
+    pipelines,
+    companies,
+    contacts,
+    tags,
+    opportunities,
+    applications,
+    interviews,
+    tasks,
+    offers,
+    documents,
+    activity,
+  ] = await Promise.all([
+    prisma.pipeline.findMany({ where, include: { stages: { orderBy: { position: "asc" } } } }),
+    prisma.company.findMany({ where, omit: { userId: true, normalizedName: true } }),
+    prisma.contact.findMany({ where, omit: { userId: true } }),
+    prisma.jobTag.findMany({ where, omit: { userId: true } }),
+    prisma.jobOpportunity.findMany({
+      where,
+      omit: { userId: true, normalizedUrl: true },
+      include: { tags: { select: { tagId: true } } },
+    }),
+    prisma.application.findMany({
+      where,
+      omit: { userId: true },
+      include: {
+        documents: { select: { documentId: true, purpose: true, wasSubmitted: true, attachedAt: true } },
+      },
+    }),
+    prisma.interview.findMany({
+      where,
+      omit: { userId: true },
+      include: { reschedules: { omit: { userId: true } }, contacts: { select: { contactId: true } } },
+    }),
+    prisma.task.findMany({ where, omit: { userId: true } }),
+    prisma.offer.findMany({ where, omit: { userId: true } }),
+    prisma.document.findMany({ where, omit: { userId: true, storageKey: true } }),
+    prisma.activityEvent.findMany({ where, omit: { userId: true }, orderBy: { occurredAt: "asc" } }),
+  ]);
+
+  return {
+    format: "jobtrack-export",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    account: { name: user.name, email: user.email },
+    preferences,
+    pipelines: pipelines.map(({ userId: _userId, stages, ...pipeline }) => ({
+      ...pipeline,
+      stages: stages.map(({ userId: _stageUser, ...stage }) => stage),
+    })),
+    companies,
+    contacts,
+    tags,
+    opportunities,
+    applications,
+    interviews,
+    tasks,
+    offers,
+    documents,
+    activity,
+  };
+}

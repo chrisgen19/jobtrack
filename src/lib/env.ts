@@ -95,6 +95,8 @@ export const storageEnv = lazy(() => {
       S3_ACCESS_KEY_ID: optionalString,
       S3_SECRET_ACCESS_KEY: optionalString,
       DOCUMENT_MAX_MB: z.coerce.number().min(1).max(50).default(10),
+      /** Test-only escape hatch so E2E (a production build) can use local files. */
+      UNSAFE_ALLOW_LOCAL_STORAGE: booleanString,
     })
     .parse(process.env);
 

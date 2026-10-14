@@ -7,8 +7,11 @@ import type { ObjectStorage } from "./types";
  * `public/`) and are only served through the authenticated download route.
  * Refused in production, where documents must go to private object storage.
  */
-export function createLocalStorage(root = path.join(process.cwd(), ".data", "uploads")): ObjectStorage {
-  if (process.env.NODE_ENV === "production") {
+export function createLocalStorage(
+  options: { root?: string; allowInProduction?: boolean } = {},
+): ObjectStorage {
+  const root = options.root ?? path.join(process.cwd(), ".data", "uploads");
+  if (process.env.NODE_ENV === "production" && !options.allowInProduction) {
     throw new Error("The local storage driver is for development only. Set STORAGE_DRIVER=s3 in production.");
   }
   const resolve = (key: string) => {

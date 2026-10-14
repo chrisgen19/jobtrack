@@ -88,21 +88,23 @@ Asia/Manila, cross-user interview/task access, calendar local-date placement), E
 Note: Next 16 keeps recently visited routes mounted but hidden (React Activity). E2E locators for in-page
 links use `.filter({ visible: true })` so they never target the hidden copy.
 
-## Milestone 4: Documents, contacts and offers (in progress)
+## Milestone 4: Documents, contacts and offers
 
-- [x] Private storage abstraction: R2/S3 driver (presigned 60 s downloads) and a dev-only local driver under `.data/uploads` (refused in production)
-- [x] Upload route: auth, per-user rate limit, size limit, extension + MIME + magic-byte checks (PDF/DOCX), SHA-256, opaque `users/<id>/<uuid>` keys
-- [x] Owner-only download route (404 for other users), document versions via "upload new version", delete with worker retry for object removal
-- [x] Attach exact versions to applications (submitted flag), library page, application Documents tab
-- [x] Offers: immutable revisions, move to offer stage on first offer, decision task suggestion, accept/decline closes only that application, offer deadlines on the calendar, application Offers tab
-- [x] Contacts data layer + actions; interview attendee picker uses the company's contacts
-- [ ] Contacts UI on `/contacts` (companies panel exists; contact list/dialog not built yet)
-- [ ] Integration tests for documents, contacts and offers; E2E for upload/download isolation
-- [ ] Analytics page (distinct-application denominators, sources, response time, trends)
-- [ ] JSON workspace export (CSV export is done)
+- [x] Private storage abstraction: R2/S3 driver (presigned 60 s downloads, `requestChecksumCalculation: WHEN_REQUIRED` for R2) and a dev-only local driver under `.data/uploads` (refused in production unless the test-only `UNSAFE_ALLOW_LOCAL_STORAGE` is set, which logs a warning)
+- [x] Upload route: auth, per-user rate limit, size limit, extension + MIME + magic-byte checks (PDF/DOCX), SHA-256, opaque `users/<id>/<uuid>` keys. No antivirus scanner is configured; the `BLOCKED` status is reserved for one
+- [x] Owner-only download route (404 for other users), versions via "upload new version" (older versions stay attached), delete with worker retry for object removal
+- [x] Attach exact versions to applications with a "submitted" flag; library page; application Documents tab
+- [x] Contacts: CRUD under companies (find-or-create), email/phone/LinkedIn, interview attendee picker limited to the company's contacts
+- [x] Offers: immutable revisions, first offer moves the application to the offer stage (logged), decision task suggestion, accept/decline closes only that application, offer deadlines on the calendar
+- [x] Analytics (`/analytics`): date-range presets/custom range, week/month trend, interview and offer rates over distinct applications, funnel using stage history snapshots, source effectiveness, open stages, outcomes, median recorded response time, cohort caveats
+- [x] Exports: CSV (attempts) and full JSON backup without password hashes, tokens or storage keys
+- [x] Account deletion (Settings → Account & data): email + password confirmation via Better Auth `deleteUser`; cascades all rows, then queues private file removal
 
-Verification so far: `pnpm typecheck`, `pnpm lint`, `pnpm test` (50 tests incl. file validation and rate limiter).
-Offers/documents flows have not been exercised end to end yet.
+Verification: `pnpm typecheck`, `pnpm lint`, `pnpm test` (65 tests: opaque keys, disguised-file rejection, version
+history, cross-user download/attach/delete denial, delete retry job, contact isolation, offer revisions and
+decisions, distinct-application analytics, export privacy), E2E `documents-offers.spec.ts` (upload, fake PDF
+rejected, owner download 200, attach, record + accept offer, other user 404 + not-found page, account deletion).
+Full E2E suite: 8/8 passing.
 
 ## Milestone 5: Notifications and integrations
 

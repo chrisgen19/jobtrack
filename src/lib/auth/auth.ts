@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { randomUUID } from "node:crypto";
+import { afterAccountDelete, beforeAccountDelete } from "@/features/account/deletion";
 import { resetPasswordEmail, verificationEmail } from "@/lib/email/templates";
 import { appEnv, authEnv } from "@/lib/env";
 import { enqueueJob } from "@/lib/jobs/queue";
@@ -53,6 +54,13 @@ export function createAuth() {
         queueAuthEmail("verify", user.email, verificationEmail(user.name, url));
       },
     },
+    user: {
+      deleteUser: {
+        enabled: true,
+        beforeDelete: (user) => beforeAccountDelete(user.id),
+        afterDelete: (user) => afterAccountDelete(user.id),
+      },
+    },
     session: {
       expiresIn: 60 * 60 * 24 * 30,
       updateAge: 60 * 60 * 24,
@@ -69,6 +77,7 @@ export function createAuth() {
         "/reset-password": { window: 300, max: 5 },
         "/send-verification-email": { window: 300, max: 3 },
         "/change-password": { window: 300, max: 5 },
+        "/delete-user": { window: 300, max: 5 },
       },
     },
     advanced: {
