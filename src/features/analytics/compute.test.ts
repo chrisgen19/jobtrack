@@ -17,7 +17,7 @@ function app(overrides: Partial<AnalyticsApplication>): AnalyticsApplication {
     stageName: "Applied",
     stageCategory: "APPLIED",
     source: "LinkedIn",
-    firstResponseAt: null,
+    respondedOn: null,
     interviewCount: 0,
     offerCount: 0,
     historyCategories: [],
@@ -54,12 +54,12 @@ describe("analytics", () => {
   });
 
   it("reports response time only for recorded responses (never invented)", () => {
-    const responded = app({ appliedOn: "2026-10-01", firstResponseAt: new Date("2026-10-05T04:00:00Z") });
+    const responded = app({ appliedOn: "2026-10-01", respondedOn: "2026-10-05" });
     expect(responseDays(responded)).toBe(4);
     expect(responseDays(app({}))).toBeNull();
     const summary = summarize([
       responded,
-      app({ appliedOn: "2026-10-01", firstResponseAt: new Date("2026-10-11T00:00:00Z") }),
+      app({ appliedOn: "2026-10-01", respondedOn: "2026-10-11" }),
       app({}),
     ]);
     expect(summary.responsesRecorded).toBe(2);

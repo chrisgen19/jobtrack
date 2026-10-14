@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAnalytics } from "@/features/analytics/data";
-import { getApplicationDetail, listActivity } from "@/features/applications/data";
+import { getApplicationDetail, listActivity, recordEmployerResponse } from "@/features/applications/data";
 import {
   createContact,
   deleteContact,
@@ -25,7 +25,7 @@ import { createOffer, decideOffer, listApplicationOffers } from "@/features/offe
 import { createOfferSchema } from "@/features/offers/schemas";
 import { createOpportunity } from "@/features/opportunities/data";
 import { quickAddSchema } from "@/features/opportunities/schemas";
-import { completeOnboarding } from "@/features/workspace/data";
+import { completeOnboarding, updateRegionalPreferences } from "@/features/workspace/data";
 import { setStorageForTests } from "@/lib/integrations/storage";
 import { prisma } from "@/lib/prisma";
 import { createTestUser, resetDatabase } from "../support/db";
@@ -284,6 +284,16 @@ describe("analytics and export", () => {
     expect(report.offerRate).toBe(0.5);
     expect(report.funnel.map((step) => step.count)).toEqual([2, 1, 1, 1]);
     expect(report.sources.map((row) => row.source).sort()).toEqual(["LinkedIn", "Referral"]);
+  });
+
+  it("measures response time in calendar days in the user's timezone", async () => {
+    const { applicationId } = await setup();
+    // West of UTC, a response entered for Oct 5 is stored as local noon = Oct 5 19:00 UTC.
+    await updateRegionalPreferences({ timezone: "America/Los_Angeles", currency: "PHP", weekStartsOn: 1 });
+    await recordEmployerResponse(applicationId, "2026-10-05");
+    const report = await getAnalytics("2026-09-01", "2026-10-31", "week");
+    expect(report.responsesRecorded).toBe(1);
+    expect(report.medianResponseDays).toBe(4);
   });
 
   it("exports only the owner's data and no secrets", async () => {

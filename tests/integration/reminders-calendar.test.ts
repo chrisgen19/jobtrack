@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { closeApplication, reopenApplication } from "@/features/applications/data";
 import { syncCalendarEvent } from "@/features/calendar-sync/sync";
 import { queueCalendarSync } from "@/features/integrations/side-effects";
 import {
@@ -16,9 +17,9 @@ import { createOfferSchema } from "@/features/offers/schemas";
 import { createOpportunity } from "@/features/opportunities/data";
 import { quickAddSchema } from "@/features/opportunities/schemas";
 import { acceptSuggestedTask, setTaskCompleted } from "@/features/tasks/data";
-import { completeOnboarding } from "@/features/workspace/data";
+import { completeOnboarding, updateRegionalPreferences } from "@/features/workspace/data";
 import { encryptSecret } from "@/lib/crypto";
-import { addDaysToDateOnly, todayInTimeZone } from "@/lib/dates";
+import { addDaysToDateOnly, todayInTimeZone, zonedToUtc } from "@/lib/dates";
 import { PermanentEmailError } from "@/lib/integrations/email";
 import { GoogleApiError } from "@/lib/integrations/google/client";
 import { prisma } from "@/lib/prisma";
@@ -140,6 +141,60 @@ describe("reminder scheduling", () => {
 
     await updateNotificationPreferences({ ...DEFAULT_PREFS, inAppReminders: false, emailReminders: false });
     expect(await prisma.reminder.count({ where: { interviewId, status: "PENDING" } })).toBe(0);
+  });
+
+  it("restores cancelled reminders when a channel is re-enabled or the application reopens", async () => {
+    const { applicationId } = await setup();
+    const interviewId = await scheduleInterview(applicationId);
+    const original = await prisma.reminder.findFirstOrThrow({ where: { interviewId } });
+
+    const expectRestored = async () => {
+      const rows = await prisma.reminder.findMany({ where: { interviewId } });
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ id: original.id, status: "PENDING", cancelledAt: null });
+      expect(await jobKeys()).toContain(`reminder:${original.id}`);
+    };
+
+    await updateNotificationPreferences({ ...DEFAULT_PREFS, inAppReminders: false });
+    expect(await prisma.reminder.findUniqueOrThrow({ where: { id: original.id } })).toMatchObject({
+      status: "CANCELLED",
+    });
+    expect(await jobKeys()).not.toContain(`reminder:${original.id}`);
+    await updateNotificationPreferences(DEFAULT_PREFS);
+    await expectRestored();
+
+    await closeApplication(applicationId, "NO_RESPONSE");
+    expect(await prisma.reminder.count({ where: { interviewId, status: "PENDING" } })).toBe(0);
+    await reopenApplication(applicationId);
+    await expectRestored();
+  });
+
+  it("moves offer deadline reminders when the timezone changes", async () => {
+    const { applicationId } = await setup();
+    const deadline = inDays(5);
+    const offerId = await createOffer(
+      createOfferSchema.parse({
+        applicationId,
+        positionTitle: "Dev",
+        currency: "PHP",
+        receivedOn: inDays(0),
+        decisionDeadline: deadline,
+      }),
+    );
+    const before = await prisma.reminder.findFirstOrThrow({ where: { offerId, status: "PENDING" } });
+    expect(before.remindAt).toEqual(zonedToUtc(addDaysToDateOnly(deadline, -1), "09:00", TZ));
+
+    const LA = "America/Los_Angeles";
+    await updateRegionalPreferences({ timezone: LA, currency: "PHP", weekStartsOn: 1 });
+    const pending = await prisma.reminder.findMany({ where: { offerId, status: "PENDING" } });
+    expect(pending).toHaveLength(1);
+    expect(pending[0]!.remindAt).toEqual(zonedToUtc(addDaysToDateOnly(deadline, -1), "09:00", LA));
+    expect(await prisma.reminder.findUniqueOrThrow({ where: { id: before.id } })).toMatchObject({
+      status: "CANCELLED",
+    });
+    const keys = await jobKeys();
+    expect(keys).toContain(`reminder:${pending[0]!.id}`);
+    expect(keys).not.toContain(`reminder:${before.id}`);
   });
 
   it("reminds about accepted tasks and stops when completed", async () => {

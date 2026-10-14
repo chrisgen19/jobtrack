@@ -16,7 +16,8 @@ export type AnalyticsApplication = {
   stageName: string;
   stageCategory: StageCategory;
   source: string | null;
-  firstResponseAt: Date | null;
+  /** First employer response as a calendar date in the user's timezone. */
+  respondedOn: string | null;
   interviewCount: number;
   offerCount: number;
   /** Stage categories reached earlier (from stage-change history). */
@@ -53,11 +54,13 @@ export function median(values: number[]): number | null {
   return sorted.length % 2 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
 }
 
-/** Whole days from the application date to the first recorded response. */
+/** Whole calendar days from the application date to the first recorded response. */
 export function responseDays(application: AnalyticsApplication): number | null {
-  if (!application.firstResponseAt) return null;
-  const applied = parseDateOnly(application.appliedOn).getTime();
-  return Math.max(0, Math.round((application.firstResponseAt.getTime() - applied) / 86_400_000));
+  if (!application.respondedOn) return null;
+  const days =
+    (parseDateOnly(application.respondedOn).getTime() - parseDateOnly(application.appliedOn).getTime()) /
+    86_400_000;
+  return Math.max(0, days);
 }
 
 export type TrendBucket = { start: string; label: string; count: number };

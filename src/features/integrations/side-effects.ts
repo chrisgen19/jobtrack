@@ -119,8 +119,8 @@ function sourceWhere(source: Source) {
 /**
  * Makes the reminder rows and jobs for one source match its current state:
  * cancels pending reminders that are no longer wanted (rescheduled,
- * cancelled, completed, preference turned off) and creates missing ones.
- * Sent reminders are never touched, so history is preserved.
+ * cancelled, completed, preference turned off) and creates or reactivates
+ * the wanted ones. Sent reminders are never touched, so history is preserved.
  */
 export async function syncReminders(
   tx: TransactionClient,
@@ -167,6 +167,15 @@ export async function syncReminders(
       update: {},
       select: { id: true, status: true },
     });
+    // The same state is wanted again (channel re-enabled, application
+    // reopened): revive the cancelled row. Sent, failed and skipped rows stay.
+    if (reminder.status === "CANCELLED") {
+      await tx.reminder.update({
+        where: { id: reminder.id },
+        data: { status: "PENDING", cancelledAt: null },
+      });
+      reminder.status = "PENDING";
+    }
     if (reminder.status === "PENDING") {
       await enqueueJob(
         tx,

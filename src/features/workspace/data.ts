@@ -1,6 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
+import { resyncUser } from "@/features/integrations/side-effects";
 import { ensureDefaultPipeline } from "@/features/pipelines/create-default";
 import { requireUser, type CurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
@@ -88,6 +89,10 @@ export async function updateRegionalPreferences(input: {
   currency: string;
   weekStartsOn: number;
 }): Promise<void> {
-  const { user } = await requireWorkspace();
-  await prisma.userPreferences.update({ where: { userId: user.id }, data: input });
+  const { user, preferences } = await requireWorkspace();
+  await prisma.$transaction(async (tx) => {
+    await tx.userPreferences.update({ where: { userId: user.id }, data: input });
+    // Offer deadline reminders fire at 09:00 local time, so a new timezone moves them.
+    if (input.timezone !== preferences.timezone) await resyncUser(tx, user.id, { calendar: false });
+  });
 }
