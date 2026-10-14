@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { afterAccountDelete, beforeAccountDelete } from "@/features/account/deletion";
+import { beforeAccountDelete } from "@/features/account/deletion";
 import { getAnalytics } from "@/features/analytics/data";
 import { getApplicationDetail, listActivity, recordEmployerResponse } from "@/features/applications/data";
 import {
@@ -29,6 +29,7 @@ import { quickAddSchema } from "@/features/opportunities/schemas";
 import { completeOnboarding, updateRegionalPreferences } from "@/features/workspace/data";
 import { setStorageForTests } from "@/lib/integrations/storage";
 import { MAX_STORAGE_KEYS_PER_JOB } from "@/lib/jobs/types";
+import { deleteUserFilesTask } from "@/worker/tasks/delete-user-files";
 import { prisma } from "@/lib/prisma";
 import { createTestUser, resetDatabase } from "../support/db";
 import { createMemoryStorage } from "../support/memory-storage";
@@ -208,6 +209,27 @@ describe("offers", () => {
     });
   }
 
+  it("rejects a decision on a superseded revision (stale tab)", async () => {
+    const { applicationId } = await setup();
+    const first = await createOffer(offer(applicationId, "100000"));
+    const second = await createOffer(offer(applicationId, "110000"));
+
+    await expect(decideOffer(first, "ACCEPTED")).rejects.toThrow(/newer revision/i);
+    expect(await prisma.application.findUniqueOrThrow({ where: { id: applicationId } })).toMatchObject({
+      status: "ACTIVE",
+      outcome: null,
+    });
+    expect(await prisma.offer.findUniqueOrThrow({ where: { id: first } })).toMatchObject({
+      status: "RECEIVED",
+    });
+
+    await decideOffer(second, "ACCEPTED");
+    expect(await prisma.application.findUniqueOrThrow({ where: { id: applicationId } })).toMatchObject({
+      status: "CLOSED",
+      outcome: "ACCEPTED",
+    });
+  });
+
   it("keeps revisions, moves to the offer stage and closes only that application on accept", async () => {
     const { applicationId } = await setup();
     const { applicationId: other } = await createOpportunity(
@@ -331,8 +353,8 @@ describe("account deletion file cleanup", () => {
       })),
     });
 
+    // Queued before the user row is deleted, so a crash afterwards cannot lose the keys.
     await beforeAccountDelete(user.id);
-    await afterAccountDelete(user.id);
 
     // The public jobs view hides payloads, so read them from Graphile's own tables.
     const jobs = await prisma.$queryRaw<{ payload: { storageKeys: string[] } }[]>`
@@ -345,5 +367,23 @@ describe("account deletion file cleanup", () => {
       500,
     ]);
     expect(new Set(jobs.flatMap((job) => job.payload.storageKeys)).size).toBe(total);
+  });
+
+  it("removes files only once no document references them, retrying until then", async () => {
+    storage.failDeletes = false;
+    const { user } = await setup();
+    const documentId = await upload("Resume");
+    const { storageKey } = await prisma.document.findUniqueOrThrow({ where: { id: documentId } });
+    const helpers = { job: { id: "test" } } as Parameters<typeof deleteUserFilesTask>[1];
+
+    // Account deletion not committed (or failed): the file stays and the job retries.
+    await expect(deleteUserFilesTask({ storageKeys: [storageKey] }, helpers)).rejects.toThrow(
+      /still referenced/,
+    );
+    expect(storage.objects.has(storageKey)).toBe(true);
+
+    await prisma.user.delete({ where: { id: user.id } });
+    await deleteUserFilesTask({ storageKeys: [storageKey] }, helpers);
+    expect(storage.objects.has(storageKey)).toBe(false);
   });
 });

@@ -960,8 +960,11 @@ model CalendarEventSync {
 
   user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   connection CalendarConnection @relation(fields: [userId, connectionId], references: [userId, id], onDelete: Cascade)
-  interview  Interview?         @relation(fields: [interviewId], references: [id], onDelete: SetNull)
-  task       Task?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  // Tenant-scoped like every other private relation. The migration narrows
+  // SetNull to the source column only (PostgreSQL 15+), so the link outlives
+  // a deleted interview/task and the worker can still remove the remote event.
+  interview  Interview?         @relation(fields: [userId, interviewId], references: [userId, id], onDelete: SetNull)
+  task       Task?              @relation(fields: [userId, taskId], references: [userId, id], onDelete: SetNull)
 
   @@unique([connectionId, interviewId])
   @@unique([connectionId, taskId])

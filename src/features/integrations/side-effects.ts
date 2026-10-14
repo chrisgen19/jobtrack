@@ -363,4 +363,16 @@ export async function resyncUser(
     if (options.calendar) await queueCalendarSync(tx, userId, { taskId: id });
   }
   for (const { id } of offers) await syncReminders(tx, userId, { offerId: id }, now);
+  if (options.calendar) {
+    // Tasks already on the calendar but outside the set above (overdue ones)
+    // must be updated or removed too, e.g. after task publishing is turned off.
+    const visited = new Set(tasks.map((task) => task.id));
+    const linked = await tx.calendarEventSync.findMany({
+      where: { userId, taskId: { not: null } },
+      select: { taskId: true },
+    });
+    for (const { taskId } of linked) {
+      if (taskId && !visited.has(taskId)) await queueCalendarSync(tx, userId, { taskId });
+    }
+  }
 }

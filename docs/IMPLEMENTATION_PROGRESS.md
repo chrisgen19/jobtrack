@@ -98,7 +98,7 @@ links use `.filter({ visible: true })` so they never target the hidden copy.
 - [x] Offers: immutable revisions, first offer moves the application to the offer stage (logged), decision task suggestion, accept/decline closes only that application, offer deadlines on the calendar
 - [x] Analytics (`/analytics`): date-range presets/custom range, week/month trend, interview and offer rates over distinct applications, funnel using stage history snapshots, source effectiveness, open stages, outcomes, median recorded response time, cohort caveats
 - [x] Exports: CSV (attempts) and full JSON backup without password hashes, tokens or storage keys
-- [x] Account deletion (Settings → Account & data): email + password confirmation via Better Auth `deleteUser`; cascades all rows, then queues private file removal
+- [x] Account deletion (Settings → Account & data): email + password confirmation via Better Auth `deleteUser`; queues private file removal durably before the delete (the worker skips files still referenced), then cascades all rows
 
 Verification: `pnpm typecheck`, `pnpm lint`, `pnpm test` (65 tests: opaque keys, disguised-file rejection, version
 history, cross-user download/attach/delete denial, delete retry job, contact isolation, offer revisions and

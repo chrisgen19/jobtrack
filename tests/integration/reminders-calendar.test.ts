@@ -16,7 +16,8 @@ import { createOffer } from "@/features/offers/data";
 import { createOfferSchema } from "@/features/offers/schemas";
 import { createOpportunity } from "@/features/opportunities/data";
 import { quickAddSchema } from "@/features/opportunities/schemas";
-import { acceptSuggestedTask, setTaskCompleted } from "@/features/tasks/data";
+import { acceptSuggestedTask, createTask, setTaskCompleted } from "@/features/tasks/data";
+import { createTaskSchema } from "@/features/tasks/schemas";
 import { completeOnboarding, updateRegionalPreferences } from "@/features/workspace/data";
 import { encryptSecret } from "@/lib/crypto";
 import { addDaysToDateOnly, todayInTimeZone, zonedToUtc } from "@/lib/dates";
@@ -360,6 +361,40 @@ describe("Google Calendar one-way sync", () => {
     expect(await syncCalendarEvent(link.id)).toBe("deleted");
     expect(google.deleteEvent).toHaveBeenCalledWith("access-token", "primary", synced.externalEventId);
     expect(await prisma.calendarEventSync.count()).toBe(0);
+  });
+
+  it("removes the events of overdue tasks when task publishing is turned off", async () => {
+    const { user } = await setup();
+    await connect(user.id);
+    google.insertEvent.mockImplementation(async (_token, _calendar, event: { id: string }) => ({
+      id: event.id,
+    }));
+    await updateNotificationPreferences({ ...DEFAULT_PREFS, calendarSyncTasks: true });
+    const taskId = await createTask(
+      createTaskSchema.parse({ title: "Overdue follow-up", dueDate: inDays(-1), dueTime: "09:00" }),
+    );
+    const link = await prisma.calendarEventSync.findFirstOrThrow({ where: { taskId } });
+    expect(await syncCalendarEvent(link.id)).toBe("synced");
+
+    await updateNotificationPreferences({ ...DEFAULT_PREFS, calendarSyncTasks: false });
+    expect(await prisma.calendarEventSync.findUniqueOrThrow({ where: { id: link.id } })).toMatchObject({
+      status: "PENDING",
+    });
+    expect(await syncCalendarEvent(link.id)).toBe("deleted");
+    expect(google.deleteEvent).toHaveBeenCalledTimes(1);
+    expect(await prisma.calendarEventSync.findUnique({ where: { id: link.id } })).toBeNull();
+  });
+
+  it("rejects a calendar link to another user's interview at the database level", async () => {
+    const { applicationId } = await setup("Alice");
+    const aliceInterview = await scheduleInterview(applicationId);
+    const { user: bob } = await setup("Bob");
+    const connection = await connect(bob.id);
+    await expect(
+      prisma.calendarEventSync.create({
+        data: { userId: bob.id, connectionId: connection.id, interviewId: aliceInterview },
+      }),
+    ).rejects.toThrow(/foreign key/i);
   });
 
   it("recovers from a crash after insert (409) without creating a duplicate", async () => {

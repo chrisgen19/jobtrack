@@ -136,6 +136,15 @@ export async function decideOffer(offerId: string, decision: "ACCEPTED" | "DECLI
     if (!offer) throw new NotFoundError("Offer");
     if (offer.status === "ACCEPTED" || offer.status === "DECLINED")
       throw new DomainError("This offer already has a decision.");
+    const newer = await tx.offer.count({
+      where: {
+        userId: user.id,
+        applicationId: offer.application.id,
+        revisionNumber: { gt: offer.revisionNumber },
+      },
+    });
+    if (newer > 0)
+      throw new DomainError("A newer revision of this offer exists. Decide on the latest revision.");
 
     await tx.offer.update({ where: { id: offer.id }, data: { status: decision, decidedAt: new Date() } });
     const { application } = offer;

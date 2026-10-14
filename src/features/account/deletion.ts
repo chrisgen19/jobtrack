@@ -5,20 +5,29 @@ import { MAX_STORAGE_KEYS_PER_JOB } from "@/lib/jobs/types";
 import { errorMessage, logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
+/** Delay before file cleanup runs, so it normally starts after the account delete committed. */
+const FILE_CLEANUP_DELAY_MS = 60_000;
+
 /**
  * Account deletion hooks for Better Auth. Deleting the `user` row cascades
- * to every owned table; private files live outside the database, so their
- * keys are collected before the delete and queued for removal only after it
- * succeeded (a failed delete never orphans data the user still owns).
+ * to every owned table; private files live outside the database.
+ *
+ * Better Auth runs these hooks and the delete as separate steps, so file
+ * cleanup is queued durably BEFORE the delete: a crash afterwards cannot lose
+ * the storage keys. The worker only removes objects that no document row
+ * references any more, so if the delete fails the user keeps their files.
  */
-const pendingKeys = new Map<string, string[]>();
-
 export async function beforeAccountDelete(userId: string): Promise<void> {
   const documents = await prisma.document.findMany({ where: { userId }, select: { storageKey: true } });
-  pendingKeys.set(
-    userId,
-    documents.map((document) => document.storageKey),
-  );
+  const storageKeys = documents.map((document) => document.storageKey);
+  const runAt = new Date(Date.now() + FILE_CLEANUP_DELAY_MS);
+  // All batches or none; an error here aborts the account deletion.
+  await prisma.$transaction(async (tx) => {
+    for (let start = 0; start < storageKeys.length; start += MAX_STORAGE_KEYS_PER_JOB) {
+      const batch = storageKeys.slice(start, start + MAX_STORAGE_KEYS_PER_JOB);
+      await enqueueJob(tx, "delete_user_files", { storageKeys: batch }, { runAt, maxAttempts: 25 });
+    }
+  });
 
   // Revoke Google Calendar access; the encrypted tokens are deleted with the account.
   const connections = await prisma.calendarConnection.findMany({
@@ -35,19 +44,5 @@ export async function beforeAccountDelete(userId: string): Promise<void> {
 }
 
 export async function afterAccountDelete(userId: string): Promise<void> {
-  const storageKeys = pendingKeys.get(userId) ?? [];
-  pendingKeys.delete(userId);
-  logger.info("account deleted", { userId, files: storageKeys.length });
-  if (storageKeys.length === 0) return;
-  try {
-    for (let start = 0; start < storageKeys.length; start += MAX_STORAGE_KEYS_PER_JOB) {
-      const batch = storageKeys.slice(start, start + MAX_STORAGE_KEYS_PER_JOB);
-      await enqueueJob(prisma, "delete_user_files", { storageKeys: batch }, { maxAttempts: 25 });
-    }
-  } catch (error) {
-    logger.error("failed to queue file cleanup after account deletion", {
-      userId,
-      error: errorMessage(error),
-    });
-  }
+  logger.info("account deleted", { userId });
 }
