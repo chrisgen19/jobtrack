@@ -1,0 +1,27 @@
+# Local development services. The Next.js app and worker run on the host
+# (`pnpm dev` and `pnpm worker:dev`) against this database.
+name: jobtrack-dev
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jobtrack
+      POSTGRES_PASSWORD: jobtrack
+      POSTGRES_DB: jobtrack
+    ports:
+      # Bound to localhost only, on a non-default port to avoid clashing
+      # with other local Postgres instances.
+      - "127.0.0.1:5436:5432"
+    volumes:
+      - db-data:/var/lib/postgresql
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobtrack -d jobtrack"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  db-data:
