@@ -1,3 +1,5 @@
+import { decryptSecret } from "@/lib/crypto";
+import { revokeToken } from "@/lib/integrations/google/client";
 import { enqueueJob } from "@/lib/jobs/queue";
 import { errorMessage, logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -16,6 +18,19 @@ export async function beforeAccountDelete(userId: string): Promise<void> {
     userId,
     documents.map((document) => document.storageKey),
   );
+
+  // Revoke Google Calendar access; the encrypted tokens are deleted with the account.
+  const connections = await prisma.calendarConnection.findMany({
+    where: { userId },
+    select: { encryptedRefreshToken: true },
+  });
+  for (const connection of connections) {
+    try {
+      await revokeToken(decryptSecret(connection.encryptedRefreshToken));
+    } catch (error) {
+      logger.warn("google revoke failed during account deletion", { userId, error: errorMessage(error) });
+    }
+  }
 }
 
 export async function afterAccountDelete(userId: string): Promise<void> {

@@ -3,6 +3,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { UserMenu } from "@/components/layout/user-menu";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { NotificationBell } from "@/features/notifications/components/notification-bell";
+import { countUnreadNotifications, listNotifications } from "@/features/notifications/data";
 import { QuickAddButton } from "@/features/opportunities/components/quick-add-button";
 import { getQuickAddOptions } from "@/features/opportunities/data";
 import { countDueTasks } from "@/features/tasks/data";
@@ -23,15 +25,20 @@ export default function WorkspaceLayout({ children }: LayoutProps<"/">) {
         ),
       }}
       topbarActions={
-        <Suspense
-          fallback={
-            <Button disabled className="px-2.5 sm:px-3.5">
-              Add a job
-            </Button>
-          }
-        >
-          <TopbarQuickAdd />
-        </Suspense>
+        <>
+          <Suspense fallback={<span className="size-9" aria-hidden />}>
+            <TopbarNotifications />
+          </Suspense>
+          <Suspense
+            fallback={
+              <Button disabled className="px-2.5 sm:px-3.5">
+                Add a job
+              </Button>
+            }
+          >
+            <TopbarQuickAdd />
+          </Suspense>
+        </>
       }
       sidebarFooter={
         <Suspense fallback={<Skeleton className="mx-2 mt-4 h-10 rounded-lg" />}>
@@ -42,6 +49,11 @@ export default function WorkspaceLayout({ children }: LayoutProps<"/">) {
       {children}
     </AppShell>
   );
+}
+
+async function TopbarNotifications() {
+  const [items, unread] = await Promise.all([listNotifications(8), countUnreadNotifications()]);
+  return <NotificationBell items={items} unread={unread} />;
 }
 
 async function TopbarQuickAdd() {

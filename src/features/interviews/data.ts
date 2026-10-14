@@ -6,6 +6,7 @@ import type {
   InterviewType,
 } from "@/generated/prisma/enums";
 import { recordActivity } from "@/features/activity/record";
+import { afterInterviewChange, beforeSourcesDeleted } from "@/features/integrations/side-effects";
 import { suggestTask } from "@/features/applications/service";
 import { requireWorkspace, type Workspace } from "@/features/workspace/data";
 import { DomainError, NotFoundError } from "@/lib/action-result";
@@ -91,6 +92,7 @@ export async function createInterview(input: CreateInterviewInput): Promise<stri
         timezone: input.timezone,
       },
     });
+    await afterInterviewChange(tx, user.id, interview.id);
     return interview.id;
   });
 }
@@ -203,6 +205,7 @@ export async function rescheduleInterview(input: RescheduleInput): Promise<void>
   await prisma.$transaction(async (tx) => {
     const interview = await loadInterview(tx, workspace.user.id, input.interviewId);
     await rescheduleInTx(tx, workspace, interview, input, input.reason);
+    await afterInterviewChange(tx, workspace.user.id, interview.id);
   });
 }
 
@@ -244,6 +247,7 @@ export async function updateInterview(input: UpdateInterviewInput): Promise<void
       summary: `Updated ${input.title} details`,
       details: { interviewId: interview.id },
     });
+    await afterInterviewChange(tx, userId, interview.id);
   });
 }
 
@@ -293,6 +297,7 @@ export async function completeInterview(
         },
       );
     }
+    await afterInterviewChange(tx, user.id, interview.id);
   });
 }
 
@@ -317,6 +322,7 @@ export async function recordInterviewResult(
       summary: `${interview.title}: ${INTERVIEW_RESULT_LABEL[result]}`,
       details: { interviewId: interview.id, result },
     });
+    await afterInterviewChange(tx, user.id, interview.id);
   });
 }
 
@@ -339,6 +345,7 @@ export async function cancelInterview(interviewId: string, reason?: string): Pro
       summary: `Cancelled ${interview.title}`,
       details: { interviewId: interview.id, ...(reason ? { reason } : {}) },
     });
+    await afterInterviewChange(tx, user.id, interview.id);
   });
 }
 
@@ -346,6 +353,14 @@ export async function deleteInterview(interviewId: string): Promise<void> {
   const { user } = await requireWorkspace();
   await prisma.$transaction(async (tx) => {
     const interview = await loadInterview(tx, user.id, interviewId);
+    const tasks = await tx.task.findMany({
+      where: { userId: user.id, interviewId: interview.id },
+      select: { id: true },
+    });
+    await beforeSourcesDeleted(tx, user.id, {
+      interviewIds: [interview.id],
+      taskIds: tasks.map((task) => task.id),
+    });
     await tx.interview.delete({ where: { id: interview.id } });
   });
 }

@@ -108,10 +108,26 @@ Full E2E suite: 8/8 passing.
 
 ## Milestone 5: Notifications and integrations
 
-- [ ] Reminder scheduling/cancellation from interviews, tasks and offers
-- [ ] In-app notifications (bell, list, read state)
-- [ ] Resend email delivery with idempotency keys and delivery log
-- [ ] Google Calendar OAuth, encrypted tokens, one-way sync with retries
+- [x] Reminder planning as a pure function (`features/notifications/plan.ts`): interviews (lead time), open tasks (lead time), offer decision deadlines (9:00 local the day before, latest revision only); in-app on by default, email only after opt-in with a verified address
+- [x] Transactional outbox: every interview/task/offer/application change re-plans its reminders and enqueues Graphile jobs inside the same DB transaction; rescheduling or cancelling cancels pending reminders and removes their jobs; sent history is never touched
+- [x] Dedupe keys include the source revision and the computed reminder time, so re-planning never duplicates and stale jobs detect they are obsolete
+- [x] Worker `deliver_reminder`: re-validates source + preferences right before sending; in-app delivery guarded by a unique `notifications.reminder_id`; email via Resend with an idempotency key, delivery log (`notification_deliveries`), bounded retries with backoff, permanent failures recorded
+- [x] In-app notifications: top-bar bell with unread state and mark-all-read, `/notifications` inbox with read/unread toggles and a reminder log (scheduled/sent/cancelled/skipped/failed)
+- [x] Notification settings: channels, default lead times, offer deadline reminders, follow-up suggestions, task publishing
+- [x] Resend webhook (`/api/webhooks/resend`, Svix signature verified): bounces/complaints mark the delivery failed, switch email reminders off and notify the user
+- [x] Google Calendar: explicit OAuth connect with HMAC-signed, user-bound, 10-minute state cookie; narrow scopes (`calendar.events`, `calendar.calendarlist.readonly`, `openid email`); refresh/access tokens AES-256-GCM encrypted; token refresh; destination calendar picker
+- [x] One-way sync worker (`sync_calendar_event`): deterministic event IDs (a retried insert after a crash hits 409 and updates instead of duplicating), updates on reschedule, deletes on cancel/delete (link rows survive cascades via SET NULL), moves events when the destination changes, 401/`invalid_grant` -> "Reconnect needed" + in-app alert, 429/5xx retried, other errors visible with a retry button
+- [x] Integrations page: not-configured state, connect/reconnect, sync counts, last error, retry failed, remove JobTrack events, disconnect (revokes Google grant and deletes credentials); account deletion also revokes the grant
+
+Verification: `pnpm test` (92 tests incl. reschedule replacing reminders and jobs, opt-in/opt-out, concurrent
+delivery producing one notification, stale-worker skip, email idempotency + transient/permanent failures,
+bounce handling, calendar insert/update/delete with a mocked Google API, 409 recovery, revoked grant, rate-limit
+retry, OAuth state forgery/expiry, Svix signatures, token encryption), E2E `notifications.spec.ts` (real worker
+delivers an in-app reminder to the inbox and bell; integrations page shows "not configured").
+
+Not verified against real providers: no Resend API key or Google OAuth client was available in this environment.
+Email sending and Google Calendar calls are covered by unit/integration tests with mocked HTTP clients and the
+development outbox only. Verify both after adding credentials (see docs/DEPLOYMENT_COOLIFY.md).
 
 ## Milestone 6: Production deployment
 

@@ -11,6 +11,7 @@ import type {
   WorkArrangement,
 } from "@/generated/prisma/enums";
 import { recordActivity } from "@/features/activity/record";
+import { beforeSourcesDeleted, sourcesUnder } from "@/features/integrations/side-effects";
 import { submitApplicationInTx } from "@/features/applications/service";
 import { findOrCreateCompany } from "@/features/companies/data";
 import { normalizeCompanyName } from "@/features/companies/normalize";
@@ -418,8 +419,16 @@ export async function setOpportunityArchived(opportunityId: string, archived: bo
 /** Permanently deletes a job with all attempts, interviews, tasks and history. */
 export async function deleteOpportunity(opportunityId: string): Promise<void> {
   const { user } = await requireWorkspace();
-  const { count } = await prisma.jobOpportunity.deleteMany({ where: { id: opportunityId, userId: user.id } });
-  if (count === 0) throw new NotFoundError("Job");
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.jobOpportunity.findFirst({
+      where: { id: opportunityId, userId: user.id },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundError("Job");
+    // Queue removal of synced calendar events before the cascade deletes their sources.
+    await beforeSourcesDeleted(tx, user.id, await sourcesUnder(tx, user.id, { opportunityId: existing.id }));
+    await tx.jobOpportunity.delete({ where: { id: existing.id } });
+  });
 }
 
 export type DuplicateCandidate = {

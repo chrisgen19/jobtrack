@@ -1,6 +1,7 @@
 import "server-only";
 import type { OfferStatus, SalaryBasis, SalaryPeriod } from "@/generated/prisma/enums";
 import { recordActivity } from "@/features/activity/record";
+import { afterApplicationStatusChange, afterOfferChange } from "@/features/integrations/side-effects";
 import { changeStageInTx, suggestTask } from "@/features/applications/service";
 import { requireWorkspace } from "@/features/workspace/data";
 import { DomainError, NotFoundError } from "@/lib/action-result";
@@ -110,6 +111,7 @@ export async function createOffer(input: CreateOfferInput): Promise<string> {
         },
       );
     }
+    await afterOfferChange(tx, user.id, offer.id);
     return offer.id;
   });
 }
@@ -160,7 +162,9 @@ export async function decideOffer(offerId: string, decision: "ACCEPTED" | "DECLI
         summary: decision === "ACCEPTED" ? "Closed: Accepted" : "Closed: Offer declined",
         details: { outcome, offerId: offer.id },
       });
+      await afterApplicationStatusChange(tx, user.id, application.id);
     }
+    await afterOfferChange(tx, user.id, offer.id);
   });
 }
 
@@ -176,7 +180,10 @@ export async function setOfferStatus(
   if (!offer) throw new NotFoundError("Offer");
   if (offer.status === "ACCEPTED" || offer.status === "DECLINED")
     throw new DomainError("This offer already has a decision.");
-  await prisma.offer.updateMany({ where: { id: offerId, userId: user.id }, data: { status } });
+  await prisma.$transaction(async (tx) => {
+    await tx.offer.updateMany({ where: { id: offerId, userId: user.id }, data: { status } });
+    await afterOfferChange(tx, user.id, offerId);
+  });
 }
 
 export type OfferDto = {

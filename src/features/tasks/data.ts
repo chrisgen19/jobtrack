@@ -1,6 +1,7 @@
 import "server-only";
 import type { Priority, TaskStatus, TaskType } from "@/generated/prisma/enums";
 import { recordActivity } from "@/features/activity/record";
+import { afterTaskChange, beforeSourcesDeleted } from "@/features/integrations/side-effects";
 import { requireWorkspace } from "@/features/workspace/data";
 import { DomainError, NotFoundError } from "@/lib/action-result";
 import { dayBoundsUtc, todayInTimeZone, zonedToUtc } from "@/lib/dates";
@@ -61,6 +62,7 @@ export async function createTask(input: CreateTaskInput): Promise<string> {
       },
       select: { id: true },
     });
+    await afterTaskChange(tx, user.id, task.id);
     return task.id;
   });
 }
@@ -89,6 +91,7 @@ export async function updateTask(input: UpdateTaskInput): Promise<void> {
         ...(dueChanged ? { scheduleRevision: { increment: 1 } } : {}),
       },
     });
+    await afterTaskChange(tx, user.id, existing.id);
   });
 }
 
@@ -118,33 +121,46 @@ export async function setTaskCompleted(taskId: string, completed: boolean): Prom
         details: { taskId: task.id },
       });
     }
+    await afterTaskChange(tx, user.id, task.id);
   });
 }
 
-/** Accepts a system-suggested task so it behaves like any open task. */
+/**
+ * Accepts a system-suggested task so it behaves like any open task, with
+ * the user's default reminder lead time.
+ */
 export async function acceptSuggestedTask(taskId: string): Promise<void> {
-  const { user } = await requireWorkspace();
-  const { count } = await prisma.task.updateMany({
-    where: { id: taskId, userId: user.id, status: "SUGGESTED" },
-    data: { status: "OPEN" },
+  const { user, preferences } = await requireWorkspace();
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.task.updateMany({
+      where: { id: taskId, userId: user.id, status: "SUGGESTED" },
+      data: { status: "OPEN", reminderMinutesBefore: preferences.taskReminderMinutes },
+    });
+    if (count === 0) throw new DomainError("This suggestion is no longer available.");
+    await afterTaskChange(tx, user.id, taskId);
   });
-  if (count === 0) throw new DomainError("This suggestion is no longer available.");
 }
 
 /** Dismisses a task (suggested or open) without deleting it. */
 export async function dismissTask(taskId: string): Promise<void> {
   const { user } = await requireWorkspace();
-  const { count } = await prisma.task.updateMany({
-    where: { id: taskId, userId: user.id, status: { in: ["SUGGESTED", "OPEN"] } },
-    data: { status: "DISMISSED" },
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.task.updateMany({
+      where: { id: taskId, userId: user.id, status: { in: ["SUGGESTED", "OPEN"] } },
+      data: { status: "DISMISSED" },
+    });
+    if (count === 0) throw new NotFoundError("Task");
+    await afterTaskChange(tx, user.id, taskId);
   });
-  if (count === 0) throw new NotFoundError("Task");
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
   const { user } = await requireWorkspace();
-  const { count } = await prisma.task.deleteMany({ where: { id: taskId, userId: user.id } });
-  if (count === 0) throw new NotFoundError("Task");
+  await prisma.$transaction(async (tx) => {
+    await beforeSourcesDeleted(tx, user.id, { taskIds: [taskId] });
+    const { count } = await tx.task.deleteMany({ where: { id: taskId, userId: user.id } });
+    if (count === 0) throw new NotFoundError("Task");
+  });
 }
 
 // ---------------------------------------------------------------------------

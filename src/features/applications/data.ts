@@ -12,6 +12,11 @@ import type {
   WorkArrangement,
 } from "@/generated/prisma/enums";
 import { recordActivity } from "@/features/activity/record";
+import {
+  afterApplicationStatusChange,
+  beforeSourcesDeleted,
+  sourcesUnder,
+} from "@/features/integrations/side-effects";
 import { requireWorkspace, type Workspace } from "@/features/workspace/data";
 import { DomainError, NotFoundError } from "@/lib/action-result";
 import { parseDateOnly, toDateOnly, toDateOnlyOrNull, zonedToUtc } from "@/lib/dates";
@@ -108,6 +113,7 @@ export async function closeApplication(
       summary: `Closed: ${APPLICATION_OUTCOME_LABEL[outcome]}`,
       details: { outcome, ...(note ? { note } : {}) },
     });
+    await afterApplicationStatusChange(tx, user.id, application.id);
   });
 }
 
@@ -129,6 +135,7 @@ export async function reopenApplication(applicationId: string): Promise<void> {
       summary: "Application reopened",
       details: { previousOutcome: application.outcome },
     });
+    await afterApplicationStatusChange(tx, user.id, application.id);
   });
 }
 
@@ -193,7 +200,14 @@ export async function addApplicationNote(applicationId: string, note: string): P
 export async function deleteApplication(applicationId: string): Promise<string> {
   const { user } = await requireWorkspace();
   const application = await loadOwnedApplication(user.id, applicationId);
-  await prisma.application.deleteMany({ where: { id: application.id, userId: user.id } });
+  await prisma.$transaction(async (tx) => {
+    await beforeSourcesDeleted(
+      tx,
+      user.id,
+      await sourcesUnder(tx, user.id, { applicationId: application.id }),
+    );
+    await tx.application.deleteMany({ where: { id: application.id, userId: user.id } });
+  });
   return application.opportunityId;
 }
 

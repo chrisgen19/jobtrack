@@ -948,6 +948,8 @@ model CalendarEventSync {
   interviewId     String?            @map("interview_id") @db.Uuid
   taskId          String?            @map("task_id") @db.Uuid
   externalEventId String?            @map("external_event_id")
+  /// Calendar the external event was created in (may differ after the user changes destination).
+  calendarId      String?            @map("calendar_id")
   status          CalendarSyncStatus @default(PENDING)
   syncRevision    Int                @default(0) @map("sync_revision")
   attempts        Int                @default(0)
