@@ -27,7 +27,7 @@ test.describe("core job tracker", () => {
     await page.goto("/jobs");
     await expect(page.getByRole("link", { name: /Full-Stack Developer/ })).toBeVisible();
     await expect(page.getByText("₱150K–185K/mo")).toBeVisible();
-    await page.getByRole("link", { name: "Saved" }).click();
+    await page.getByRole("link", { name: "Saved", exact: true }).filter({ visible: true }).click();
     await expect(page.getByText("Showing 2 of 2")).toBeVisible();
 
     // Duplicate warning is advisory.
@@ -49,7 +49,7 @@ test.describe("core job tracker", () => {
     // Change stage with the accessible select and confirm the timeline entry.
     await page.getByRole("combobox", { name: "Stage" }).selectOption({ label: "Recruiter Screening" });
     await expect(page.getByText("Moved to Recruiter Screening")).toBeVisible();
-    await page.getByRole("link", { name: "Timeline" }).click();
+    await page.getByRole("link", { name: "Timeline", exact: true }).filter({ visible: true }).click();
     await expect(page.getByText("Moved from Applied to Recruiter Screening")).toBeVisible();
 
     // Add a custom stage.

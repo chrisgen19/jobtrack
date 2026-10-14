@@ -30,6 +30,11 @@ export const NAV_ITEMS: NavItem[] = [
   { name: "Settings", href: "/settings", icon: Settings, group: "Account" },
 ];
 
+/** Routes without their own nav entry, shown under a parent section. */
+const ALIASES: Record<string, string> = { "/applications": "/jobs", "/notifications": "/dashboard" };
+
 export function activeNavItem(pathname: string): NavItem | undefined {
-  return NAV_ITEMS.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
+  const alias = Object.entries(ALIASES).find(([prefix]) => pathname.startsWith(prefix))?.[1];
+  const path = alias ?? pathname;
+  return NAV_ITEMS.find((item) => path === item.href || path.startsWith(`${item.href}/`));
 }

@@ -69,11 +69,24 @@ Milestones 4-5; deleting a job/interview does not yet queue Google Calendar even
 
 ## Milestone 3: Interviews and productivity
 
-- [ ] Unlimited interview rounds, timezone-aware scheduling
-- [ ] Rescheduling with history and activity events
-- [ ] Tasks: CRUD, Today/Upcoming/Overdue/Completed, suggested follow-ups
-- [ ] Calendar month view + agenda
-- [ ] Activity timeline, dashboard metrics complete
+- [x] Unlimited interview rounds per application (same type repeated freely), with title, type, round number, date/time, duration, IANA timezone, format, meeting link, location, interviewers, prep notes, feedback, reminder lead time
+- [x] Scheduling status (unscheduled, scheduled, rescheduled, completed, cancelled) kept separate from the result (pending, awaiting feedback, passed, not passed) and from the application outcome
+- [x] Timezone-safe storage: wall-clock + IANA zone converted to a UTC instant; shown in the user's timezone with the interview's own zone alongside when different
+- [x] Rescheduling keeps the same record, stores history rows (`interview_reschedules`), bumps `schedule_revision` (for reminder dedupe) and logs before/after in the timeline
+- [x] Completing an interview suggests an editable thank-you follow-up; cancelling never rejects the application
+- [x] Tasks: create/edit/complete/reopen/dismiss/delete, linked to an application or standalone, due date + optional time in the user's timezone, priority, reminder lead time
+- [x] Task groups: Suggested, Overdue, Today, Upcoming, No due date, Completed; suggestions can be accepted, edited or dismissed
+- [x] Calendar: month grid in the user's timezone (week start preference), interviews, task due dates and application deadlines, daily agenda with reschedule, "coming up" list
+- [x] Application page: interviews tab, next-steps tasks, timeline with interview events
+- [x] Dashboard metrics and Needs Attention now driven by interviews and tasks
+
+Verification: `pnpm typecheck`, `pnpm lint`, `pnpm test` (46 tests: 5 rounds incl. repeated types, UTC +
+timezone storage, reschedule history/revision/activity, result vs outcome independence, task grouping in
+Asia/Manila, cross-user interview/task access, calendar local-date placement), E2E `interviews.spec.ts`
+(3 rounds, reschedule with reason, complete, timeline, accept suggestion, create + complete task, calendar).
+
+Note: Next 16 keeps recently visited routes mounted but hidden (React Activity). E2E locators for in-page
+links use `.filter({ visible: true })` so they never target the hidden copy.
 
 ## Milestone 4: Documents, contacts and offers
 

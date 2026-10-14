@@ -515,3 +515,26 @@ export async function getQuickAddOptions(): Promise<QuickAddOptions> {
     today: todayInTimeZone(preferences.timezone),
   };
 }
+
+export type DeadlineItem = { opportunityId: string; title: string; company: string; deadline: string };
+
+/** Application deadlines (DATE) of saved, not-yet-applied jobs within [from, to]. */
+export async function listApplicationDeadlines(from: string, to: string): Promise<DeadlineItem[]> {
+  const { user } = await requireWorkspace();
+  const rows = await prisma.jobOpportunity.findMany({
+    where: {
+      userId: user.id,
+      archivedAt: null,
+      applications: { none: {} },
+      deadline: { gte: parseDateOnly(from), lte: parseDateOnly(to) },
+    },
+    orderBy: { deadline: "asc" },
+    select: { id: true, title: true, deadline: true, company: { select: { name: true } } },
+  });
+  return rows.map((row) => ({
+    opportunityId: row.id,
+    title: row.title,
+    company: row.company.name,
+    deadline: toDateOnly(row.deadline!),
+  }));
+}

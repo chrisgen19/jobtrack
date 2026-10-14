@@ -15,15 +15,20 @@ import { NoteForm } from "@/features/applications/components/note-form";
 import { StageSelect } from "@/features/applications/components/stage-select";
 import { StatusControls } from "@/features/applications/components/status-controls";
 import { getApplicationDetail, listActivity, type ApplicationDetail } from "@/features/applications/data";
-import { requireWorkspace } from "@/features/workspace/data";
-import { formatDateOnly, formatInTimeZone, todayInTimeZone } from "@/lib/dates";
+import { InterviewList } from "@/features/interviews/components/interview-list";
+import { listApplicationInterviews } from "@/features/interviews/data";
+import { NewTaskButton } from "@/features/tasks/components/new-task-button";
+import { TaskList } from "@/features/tasks/components/task-list";
+import { listApplicationTasks, listTaskTargets } from "@/features/tasks/data";
+import { requireWorkspace, type WorkspacePreferences } from "@/features/workspace/data";
+import { formatDateOnly, formatInTimeZone, supportedTimeZones, todayInTimeZone } from "@/lib/dates";
 import { APPLICATION_METHOD_LABEL, WORK_ARRANGEMENT_LABEL } from "@/lib/labels";
 import { formatSalaryRange } from "@/lib/money";
 import { uuid } from "@/lib/validations/common";
 
 export const metadata: Metadata = { title: "Application" };
 
-const TABS = ["overview", "timeline"] as const;
+const TABS = ["overview", "interviews", "timeline"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function ApplicationPage({ params, searchParams }: PageProps<"/applications/[id]">) {
@@ -123,11 +128,18 @@ async function ApplicationView({
           hrefFor={(next) => `/applications/${application.id}${next === "overview" ? "" : `?tab=${next}`}`}
           tabs={[
             { id: "overview", label: "Overview" },
+            { id: "interviews", label: "Interviews" },
             { id: "timeline", label: "Timeline" },
           ]}
         />
         {tab === "overview" ? (
-          <Overview application={application} timezone={preferences.timezone} today={today} />
+          <>
+            <Overview application={application} timezone={preferences.timezone} today={today} />
+            <NextSteps applicationId={application.id} preferences={preferences} today={today} />
+          </>
+        ) : null}
+        {tab === "interviews" ? (
+          <Interviews applicationId={application.id} preferences={preferences} />
         ) : null}
         {tab === "timeline" ? (
           <Timeline applicationId={application.id} timezone={preferences.timezone} />
@@ -213,6 +225,61 @@ function Overview({
         {opportunity.description ?? "No description saved."}
       </p>
     </div>
+  );
+}
+
+async function NextSteps({
+  applicationId,
+  preferences,
+  today,
+}: {
+  applicationId: string;
+  preferences: WorkspacePreferences;
+  today: string;
+}) {
+  const [tasks, targets] = await Promise.all([listApplicationTasks(applicationId), listTaskTargets()]);
+  return (
+    <section aria-label="Next steps">
+      <div className="flex items-center justify-between gap-3">
+        <SectionLabel>Next steps</SectionLabel>
+        <NewTaskButton
+          targets={targets}
+          applicationId={applicationId}
+          defaultDueDate={today}
+          defaultReminderMinutes={preferences.taskReminderMinutes}
+          label="Add follow-up"
+        />
+      </div>
+      {tasks.length ? (
+        <div className="-mx-5 sm:-mx-6">
+          <TaskList tasks={tasks} timezone={preferences.timezone} today={today} targets={targets} />
+        </div>
+      ) : (
+        <p className="rounded-[9px] bg-[#f4f7f2] px-3 py-2.5 text-[11px] text-[#829082]">
+          No open tasks for this application.
+        </p>
+      )}
+    </section>
+  );
+}
+
+async function Interviews({
+  applicationId,
+  preferences,
+}: {
+  applicationId: string;
+  preferences: WorkspacePreferences;
+}) {
+  const interviews = await listApplicationInterviews(applicationId);
+  return (
+    <InterviewList
+      applicationId={applicationId}
+      interviews={interviews}
+      timezone={preferences.timezone}
+      defaultReminderMinutes={preferences.interviewReminderMinutes}
+      timeZones={supportedTimeZones()}
+      contacts={[]}
+    />
   );
 }
 
