@@ -15,7 +15,12 @@ import { NoteForm } from "@/features/applications/components/note-form";
 import { StageSelect } from "@/features/applications/components/stage-select";
 import { StatusControls } from "@/features/applications/components/status-controls";
 import { getApplicationDetail, listActivity, type ApplicationDetail } from "@/features/applications/data";
+import { listCompanyContacts } from "@/features/contacts/data";
+import { ApplicationDocuments } from "@/features/documents/components/application-documents";
+import { listApplicationDocuments, listDocumentChoices } from "@/features/documents/data";
 import { InterviewList } from "@/features/interviews/components/interview-list";
+import { OfferList } from "@/features/offers/components/offer-list";
+import { listApplicationOffers } from "@/features/offers/data";
 import { listApplicationInterviews } from "@/features/interviews/data";
 import { NewTaskButton } from "@/features/tasks/components/new-task-button";
 import { TaskList } from "@/features/tasks/components/task-list";
@@ -28,7 +33,7 @@ import { uuid } from "@/lib/validations/common";
 
 export const metadata: Metadata = { title: "Application" };
 
-const TABS = ["overview", "interviews", "timeline"] as const;
+const TABS = ["overview", "interviews", "documents", "offers", "timeline"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function ApplicationPage({ params, searchParams }: PageProps<"/applications/[id]">) {
@@ -129,6 +134,8 @@ async function ApplicationView({
           tabs={[
             { id: "overview", label: "Overview" },
             { id: "interviews", label: "Interviews" },
+            { id: "documents", label: "Documents" },
+            { id: "offers", label: "Offers" },
             { id: "timeline", label: "Timeline" },
           ]}
         />
@@ -139,7 +146,21 @@ async function ApplicationView({
           </>
         ) : null}
         {tab === "interviews" ? (
-          <Interviews applicationId={application.id} preferences={preferences} />
+          <Interviews
+            applicationId={application.id}
+            companyId={application.opportunity.companyId}
+            preferences={preferences}
+          />
+        ) : null}
+        {tab === "documents" ? <Documents applicationId={application.id} /> : null}
+        {tab === "offers" ? (
+          <Offers
+            applicationId={application.id}
+            positionTitle={application.opportunity.title}
+            preferences={preferences}
+            today={today}
+            closed={application.status === "CLOSED"}
+          />
         ) : null}
         {tab === "timeline" ? (
           <Timeline applicationId={application.id} timezone={preferences.timezone} />
@@ -263,14 +284,51 @@ async function NextSteps({
   );
 }
 
+async function Documents({ applicationId }: { applicationId: string }) {
+  const [attached, choices] = await Promise.all([
+    listApplicationDocuments(applicationId),
+    listDocumentChoices(),
+  ]);
+  return <ApplicationDocuments applicationId={applicationId} attached={attached} choices={choices} />;
+}
+
+async function Offers({
+  applicationId,
+  positionTitle,
+  preferences,
+  today,
+  closed,
+}: {
+  applicationId: string;
+  positionTitle: string;
+  preferences: WorkspacePreferences;
+  today: string;
+  closed: boolean;
+}) {
+  const offers = await listApplicationOffers(applicationId);
+  return (
+    <OfferList
+      applicationId={applicationId}
+      offers={offers}
+      defaults={{ positionTitle, currency: preferences.currency, today }}
+      applicationClosed={closed}
+    />
+  );
+}
+
 async function Interviews({
   applicationId,
+  companyId,
   preferences,
 }: {
   applicationId: string;
+  companyId: string;
   preferences: WorkspacePreferences;
 }) {
-  const interviews = await listApplicationInterviews(applicationId);
+  const [interviews, contacts] = await Promise.all([
+    listApplicationInterviews(applicationId),
+    listCompanyContacts(companyId),
+  ]);
   return (
     <InterviewList
       applicationId={applicationId}
@@ -278,7 +336,7 @@ async function Interviews({
       timezone={preferences.timezone}
       defaultReminderMinutes={preferences.interviewReminderMinutes}
       timeZones={supportedTimeZones()}
-      contacts={[]}
+      contacts={contacts}
     />
   );
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import type { InterviewMode, InterviewStatus } from "@/generated/prisma/enums";
 import { listInterviewsBetween, type CalendarInterview } from "@/features/interviews/data";
+import { listOfferDeadlines } from "@/features/offers/data";
 import { listApplicationDeadlines } from "@/features/opportunities/data";
 import { listTasksBetween } from "@/features/tasks/data";
 import { requireWorkspace } from "@/features/workspace/data";
@@ -45,10 +46,11 @@ export async function getCalendarMonth(month: string): Promise<CalendarMonth> {
   const todayStart = dayBoundsUtc(today, timezone).start;
   const horizon = dayBoundsUtc(addDaysToDateOnly(today, 60), timezone).end;
 
-  const [interviews, tasks, deadlines, upcomingInterviews] = await Promise.all([
+  const [interviews, tasks, deadlines, offerDeadlines, upcomingInterviews] = await Promise.all([
     listInterviewsBetween(start, end),
     listTasksBetween(start, end),
     listApplicationDeadlines(first, last),
+    listOfferDeadlines(first, last),
     listInterviewsBetween(todayStart, horizon),
   ]);
 
@@ -90,6 +92,15 @@ export async function getCalendarMonth(month: string): Promise<CalendarMonth> {
       title: `Apply by: ${deadline.title}`,
       subtitle: deadline.company,
       href: `/jobs/${deadline.opportunityId}`,
+    })),
+    ...offerDeadlines.map((deadline): CalendarEvent => ({
+      kind: "deadline",
+      id: deadline.offerId,
+      date: deadline.deadline,
+      time: null,
+      title: `Offer decision due: ${deadline.positionTitle}`,
+      subtitle: deadline.company,
+      href: `/applications/${deadline.applicationId}?tab=offers`,
     })),
   ];
 

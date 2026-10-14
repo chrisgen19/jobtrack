@@ -88,14 +88,21 @@ Asia/Manila, cross-user interview/task access, calendar local-date placement), E
 Note: Next 16 keeps recently visited routes mounted but hidden (React Activity). E2E locators for in-page
 links use `.filter({ visible: true })` so they never target the hidden copy.
 
-## Milestone 4: Documents, contacts and offers
+## Milestone 4: Documents, contacts and offers (in progress)
 
-- [ ] Private document storage (R2/S3 driver, local dev driver), magic-byte validation, signed downloads
-- [ ] Resume versions and application document links
-- [ ] Contacts per company, interview attendees
-- [ ] Offers with revisions, accept/decline closes the application
-- [ ] Analytics with distinct-application denominators
-- [ ] CSV and JSON export
+- [x] Private storage abstraction: R2/S3 driver (presigned 60 s downloads) and a dev-only local driver under `.data/uploads` (refused in production)
+- [x] Upload route: auth, per-user rate limit, size limit, extension + MIME + magic-byte checks (PDF/DOCX), SHA-256, opaque `users/<id>/<uuid>` keys
+- [x] Owner-only download route (404 for other users), document versions via "upload new version", delete with worker retry for object removal
+- [x] Attach exact versions to applications (submitted flag), library page, application Documents tab
+- [x] Offers: immutable revisions, move to offer stage on first offer, decision task suggestion, accept/decline closes only that application, offer deadlines on the calendar, application Offers tab
+- [x] Contacts data layer + actions; interview attendee picker uses the company's contacts
+- [ ] Contacts UI on `/contacts` (companies panel exists; contact list/dialog not built yet)
+- [ ] Integration tests for documents, contacts and offers; E2E for upload/download isolation
+- [ ] Analytics page (distinct-application denominators, sources, response time, trends)
+- [ ] JSON workspace export (CSV export is done)
+
+Verification so far: `pnpm typecheck`, `pnpm lint`, `pnpm test` (50 tests incl. file validation and rate limiter).
+Offers/documents flows have not been exercised end to end yet.
 
 ## Milestone 5: Notifications and integrations
 

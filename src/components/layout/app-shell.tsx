@@ -128,7 +128,7 @@ function NavLinks({ pathname, navBadges, onNavigate }: NavLinksProps) {
     <nav aria-label="Main" className="flex flex-col">
       {NAV_ITEMS.map((item, index) => {
         const showHeading = index === 0 || NAV_ITEMS[index - 1]?.group !== item.group;
-        const active = pathname !== null && (pathname === item.href || pathname.startsWith(`${item.href}/`));
+        const active = pathname !== null && activeNavItem(pathname)?.href === item.href;
         const Icon = item.icon;
         return (
           <div key={item.href}>
