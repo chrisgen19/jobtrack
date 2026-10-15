@@ -107,5 +107,23 @@ test.describe("core job tracker", () => {
     await page.keyboard.press("Escape");
     await expect(peek).toBeHidden();
     await expect(page).toHaveURL(/\/pipeline$/);
+
+    // Kanban: a Saved card opens the job drawer; "Mark as applied" swaps it for the new
+    // application's drawer, and closing that returns to the board, not to the job drawer.
+    await page.getByRole("link", { name: "Senior Engineer", exact: true }).click();
+    const jobPeek = page.getByRole("dialog", { name: "Senior Engineer" });
+    await expect(jobPeek).toBeVisible();
+    await expect(page).toHaveURL(/\/jobs\//);
+    await expect(jobPeek.getByRole("link", { name: "Open full page" })).toBeVisible();
+    await jobPeek.getByRole("button", { name: "Mark as applied" }).click();
+    await page.getByRole("dialog", { name: "Mark as applied" }).getByLabel("Date applied").fill("2026-10-02");
+    await page.getByRole("button", { name: "Record application" }).click();
+    const appliedPeek = page.getByRole("dialog", { name: "Senior Engineer" });
+    await expect(page).toHaveURL(/\/applications\//);
+    await expect(appliedPeek.getByText("Application details · Attempt 1")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(appliedPeek).toBeHidden();
+    await expect(page).toHaveURL(/\/pipeline$/);
+    await expect(page.getByRole("region", { name: /Saved column, 0 cards/ })).toBeVisible();
   });
 });

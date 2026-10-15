@@ -27,10 +27,23 @@ interface ApplyDialogProps {
   today: string;
   attemptNumber: number;
   trigger: ReactNode;
+  /**
+   * How to open the new application. The pipeline's job drawer uses "replace",
+   * so closing the application drawer that follows returns to the board rather
+   * than to the job drawer of a job that is now applied.
+   */
+  navigate?: "push" | "replace";
 }
 
 /** Records an application attempt ("Mark as applied" / "Reapply"). */
-export function ApplyDialog({ opportunityId, stages, today, attemptNumber, trigger }: ApplyDialogProps) {
+export function ApplyDialog({
+  opportunityId,
+  stages,
+  today,
+  attemptNumber,
+  trigger,
+  navigate = "push",
+}: ApplyDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -49,7 +62,7 @@ export function ApplyDialog({ opportunityId, stages, today, attemptNumber, trigg
     }
     setOpen(false);
     toast.success(attemptNumber > 1 ? "Reapplication recorded" : "Application recorded");
-    router.push(`/applications/${result.data.applicationId}`);
+    router[navigate](`/applications/${result.data.applicationId}`);
   }
 
   return (
