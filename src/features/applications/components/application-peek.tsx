@@ -2,9 +2,9 @@ import { ArrowUpRight } from "lucide-react";
 import { ClosedBadge, PriorityBadge, StageBadge, StatusBadge } from "@/components/shared/badges";
 import { CompanyLogo } from "@/components/shared/company-logo";
 import { DetailFact, SectionLabel } from "@/components/shared/detail-fact";
+import { PeekNotFound } from "@/components/shared/peek-sheet";
 import { Button } from "@/components/ui/button";
 import { SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ActivityTimeline } from "@/features/activity/components/activity-timeline";
 import { getApplicationDetail, listActivity, type ApplicationDetail } from "@/features/applications/data";
 import { listApplicationInterviews, type InterviewDto } from "@/features/interviews/data";
@@ -20,7 +20,7 @@ const OPEN_TASKS = 3;
 
 /** Read-only application summary for the pipeline drawer; editing stays on the full page. */
 export async function ApplicationPeek({ id }: { id: string }) {
-  if (!uuid.safeParse(id).success) return <PeekNotFound />;
+  if (!uuid.safeParse(id).success) return <PeekNotFound title="Application not found" />;
   const [application, { preferences }, interviews, tasks, events] = await Promise.all([
     getApplicationDetail(id),
     requireWorkspace(),
@@ -28,7 +28,7 @@ export async function ApplicationPeek({ id }: { id: string }) {
     listApplicationTasks(id),
     listActivity({ applicationId: id, take: RECENT_ACTIVITY }),
   ]);
-  if (!application) return <PeekNotFound />;
+  if (!application) return <PeekNotFound title="Application not found" />;
   const timezone = preferences.timezone;
   const now = new Date();
   const nextInterview = interviews.find(
@@ -160,39 +160,4 @@ function OpenTasks({ tasks, timezone }: { tasks: TaskItem[]; timezone: string })
 
 function EmptyLine({ children }: { children: React.ReactNode }) {
   return <p className="rounded-[9px] bg-[#f4f7f2] px-3 py-2.5 text-[11px] text-[#829082]">{children}</p>;
-}
-
-function PeekNotFound() {
-  return (
-    <SheetHeader className="px-5 pt-6 pr-12 sm:px-7">
-      <SheetTitle>Application not found</SheetTitle>
-      <SheetDescription className="text-xs">
-        It may have been deleted. Close this panel to go back.
-      </SheetDescription>
-    </SheetHeader>
-  );
-}
-
-/** Loading state; keeps a dialog title so the drawer stays labelled while data streams in. */
-export function ApplicationPeekSkeleton() {
-  return (
-    <div className="flex flex-col gap-4 px-5 pt-6 sm:px-7" aria-busy>
-      <SheetTitle className="sr-only">Loading application</SheetTitle>
-      <SheetDescription className="sr-only">Fetching the application summary.</SheetDescription>
-      <Skeleton className="h-3 w-40" />
-      <div className="flex items-center gap-3.5">
-        <Skeleton className="size-11 rounded-xl" />
-        <div className="flex flex-1 flex-col gap-2">
-          <Skeleton className="h-5 w-3/4" />
-          <Skeleton className="h-3 w-1/2" />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        {Array.from({ length: 4 }, (_, index) => (
-          <Skeleton key={index} className="h-16 rounded-[10px]" />
-        ))}
-      </div>
-      <Skeleton className="h-14 rounded-[10px]" />
-    </div>
-  );
 }

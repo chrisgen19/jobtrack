@@ -1,9 +1,6 @@
 import { Suspense } from "react";
-import {
-  ApplicationPeek,
-  ApplicationPeekSkeleton,
-} from "@/features/applications/components/application-peek";
-import { PeekSheet } from "@/features/applications/components/peek-sheet";
+import { PeekSheet, PeekSkeleton } from "@/components/shared/peek-sheet";
+import { ApplicationPeek } from "@/features/applications/components/application-peek";
 
 /** `/applications/[id]` opened from the board: a summary drawer instead of the full page. */
 export default function ApplicationPeekPage({ params }: { params: Promise<{ id: string }> }) {
@@ -11,7 +8,7 @@ export default function ApplicationPeekPage({ params }: { params: Promise<{ id: 
     // The sheet reads the pathname, which is request-time data under Cache Components.
     <Suspense fallback={null}>
       <PeekSheet pathPrefix="/applications/">
-        <Suspense fallback={<ApplicationPeekSkeleton />}>
+        <Suspense fallback={<PeekSkeleton label="application" />}>
           <PeekContent params={params} />
         </Suspense>
       </PeekSheet>
