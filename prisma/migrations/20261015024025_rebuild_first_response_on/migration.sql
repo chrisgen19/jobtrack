@@ -1,14 +1,15 @@
--- Contract step for 20261015014931_first_response_date_only (docs/DEPLOYMENT_COOLIFY.md,
--- "Deploying schema changes safely"). Ship it only in a release after the one that
--- introduced first_response_on is deployed everywhere: from here on no running code
--- reads or writes first_response_at.
--- Written by hand to reconcile before the drop; see the steps below.
+-- Contract step 1 of 2 for 20261015014931_first_response_date_only (docs/DEPLOYMENT_COOLIFY.md,
+-- "Deploying schema changes safely"). Data only: it runs while the previous release still
+-- serves, and that release reads first_response_on first, so it is safe during the deploy.
+-- From this release on no code reads or writes first_response_at (the schema keeps it with
+-- @ignore); a later release drops the column once no running code selects it.
+-- Written by hand; see the steps below.
 
 -- Rebuild 1: every recorded response from its latest EMPLOYER_RESPONSE_RECEIVED event.
 -- Both releases saved the entered date there, so this also picks up a response the
--- previous release recorded or corrected during the expand deploy (it only updated
--- first_response_at). Only rows that already have a response are touched, so a
--- response is never brought back from an old event.
+-- release before the expand recorded or corrected during the expand deploy (it only
+-- updated first_response_at). Only rows that already have a response are touched, so
+-- a response is never brought back from an old event.
 UPDATE "applications" AS a
 SET "first_response_on" = latest."responded_on"
 FROM (
@@ -34,6 +35,3 @@ WHERE p."user_id" = a."user_id" AND a."first_response_at" IS NOT NULL AND a."fir
 UPDATE "applications"
 SET "first_response_on" = ("first_response_at" AT TIME ZONE 'UTC')::date
 WHERE "first_response_at" IS NOT NULL AND "first_response_on" IS NULL;
-
--- AlterTable
-ALTER TABLE "applications" DROP COLUMN "first_response_at";
