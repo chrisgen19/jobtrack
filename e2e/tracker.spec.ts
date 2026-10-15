@@ -91,5 +91,15 @@ test.describe("core job tracker", () => {
     await page.mouse.up();
     await expect(page.getByRole("region", { name: /Job Offer column, 1 card/ })).toBeVisible();
     await expect(page.getByText(/moved to Job Offer/)).toBeVisible();
+
+    // Kanban: the card title opens a summary drawer over the board; Escape returns to it.
+    await page.getByRole("link", { name: "Full-Stack Developer", exact: true }).click();
+    const peek = page.getByRole("dialog", { name: "Full-Stack Developer" });
+    await expect(peek).toBeVisible();
+    await expect(page).toHaveURL(/\/applications\//);
+    await expect(peek.getByRole("link", { name: "Open full page" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(peek).toBeHidden();
+    await expect(page).toHaveURL(/\/pipeline$/);
   });
 });
