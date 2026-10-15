@@ -50,12 +50,8 @@ export function linkFrom(text: string): string {
   return match[0];
 }
 
-/** Registers, verifies the email from the outbox and completes onboarding. */
-export async function registerAndOnboard(
-  page: Page,
-  account: TestAccount,
-  options = { timezone: "Asia/Manila", currency: "PHP" },
-) {
+/** Registers an account and returns the email verification link from the outbox. */
+export async function register(page: Page, account: TestAccount): Promise<string> {
   await page.goto("/register");
   await page.getByLabel("Full name").fill(account.name);
   await page.getByLabel("Email").fill(account.email);
@@ -65,7 +61,16 @@ export async function registerAndOnboard(
   await expect(page).toHaveURL(/\/verify-email/);
 
   const mail = await waitForEmail(account.email, "Verify");
-  await page.goto(linkFrom(mail.text));
+  return linkFrom(mail.text);
+}
+
+/** Registers, verifies the email from the outbox and completes onboarding. */
+export async function registerAndOnboard(
+  page: Page,
+  account: TestAccount,
+  options = { timezone: "Asia/Manila", currency: "PHP" },
+) {
+  await page.goto(await register(page, account));
   await expect(page).toHaveURL(/\/onboarding/);
 
   await page.getByLabel("Your timezone").selectOption(options.timezone);
