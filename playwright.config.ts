@@ -21,6 +21,9 @@ export default defineConfig({
   globalTeardown: "./e2e/global-teardown.ts",
   use: {
     baseURL: testEnv.APP_URL,
+    // The specs enter Manila wall-clock times. Onboarding can reset an early timezone pick to the
+    // browser's zone during hydration, so the browser must be in Manila too (CI runners are UTC).
+    timezoneId: "Asia/Manila",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

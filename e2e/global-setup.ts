@@ -1,4 +1,4 @@
-import { execSync, spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, execSync, spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -25,7 +25,9 @@ function groupAlive(pid: number): boolean {
 /** Only our worker's process group is signalled: a PID from an old run may belong to something else now. */
 function isOurWorker(pid: number): boolean {
   try {
-    return readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").includes(WORKER_COMMAND[3]);
+    // `ps` works on Linux and macOS (unlike /proc); -ww keeps long command lines whole.
+    const args = execFileSync("ps", ["-ww", "-o", "args=", "-p", String(pid)], { encoding: "utf8" });
+    return args.split(/\s+/).includes(WORKER_COMMAND[3]);
   } catch {
     return false;
   }
