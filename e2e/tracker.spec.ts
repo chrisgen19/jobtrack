@@ -70,6 +70,8 @@ test.describe("core job tracker", () => {
       await expect(boardCard).toHaveAttribute("aria-describedby", "pipeline-board");
     }
     await expect(page.locator("#pipeline-board")).toBeAttached();
+    // Each card's priority badge carries a screen-reader label.
+    await expect(page.locator("article").getByText("Priority:", { exact: true })).toHaveCount(2);
 
     await page
       .getByRole("button", { name: "Move Full-Stack Developer to another stage", exact: true })

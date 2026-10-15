@@ -372,9 +372,17 @@ function CardBody({
         {card.workArrangement ? ` · ${WORK_ARRANGEMENT_LABEL[card.workArrangement]}` : ""}
       </p>
       <div className="flex items-center justify-between gap-1 border-t border-line-soft pt-3">
+        {/* sr-only labels give the badges their meaning ("Priority: Medium", not just "Medium");
+            the footer date already starts with its own label ("Applied", "Saved", "Attempt"). */}
         <span className="flex items-center gap-1">
+          <span className="sr-only">Priority:</span>
           <PriorityBadge priority={card.priority} />
-          {paused ? <StatusBadge label="Paused" tone="amber" /> : null}
+          {paused ? (
+            <>
+              <span className="sr-only">Status:</span>
+              <StatusBadge label="Paused" tone="amber" />
+            </>
+          ) : null}
         </span>
         <span className="text-[10px] text-[#98a49d]">{footer}</span>
       </div>
