@@ -62,6 +62,15 @@ test.describe("core job tracker", () => {
     // Kanban: move with the "Move to" menu (keyboard/screen-reader path).
     await page.goto("/pipeline");
     await expect(page.getByRole("region", { name: /Coding Challenge column, 0 cards/ })).toBeVisible();
+
+    // Kanban: cards share the DndContext's stable describedby id, so SSR and hydration markup match.
+    const cards = page.locator('[aria-roledescription="Draggable job card"]');
+    await expect(cards).toHaveCount(2);
+    for (const boardCard of await cards.all()) {
+      await expect(boardCard).toHaveAttribute("aria-describedby", "pipeline-board");
+    }
+    await expect(page.locator("#pipeline-board")).toBeAttached();
+
     await page
       .getByRole("button", { name: "Move Full-Stack Developer to another stage", exact: true })
       .click();
