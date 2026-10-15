@@ -112,7 +112,12 @@ export function timeZoneLabel(timeZone: string, at: Date = new Date()): string {
   return parts.find((part) => part.type === "timeZoneName")?.value ?? timeZone;
 }
 
-/** All IANA timezones supported by the runtime. */
+/**
+ * All IANA timezones supported by the runtime, plus "UTC": Intl leaves it out, but a
+ * browser in UTC reports it, and a timezone select without it falls back to its first
+ * option (Africa/Abidjan) instead.
+ */
 export function supportedTimeZones(): string[] {
-  return Intl.supportedValuesOf("timeZone");
+  const zones = Intl.supportedValuesOf("timeZone");
+  return zones.includes("UTC") ? zones : [...zones, "UTC"].sort();
 }
