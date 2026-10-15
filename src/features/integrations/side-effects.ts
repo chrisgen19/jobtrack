@@ -93,7 +93,14 @@ export async function loadReminderSource(
   }
   const offer = await tx.offer.findFirst({
     where: { id: source.offerId, userId },
-    select: { id: true, status: true, decisionDeadline: true, applicationId: true, revisionNumber: true },
+    select: {
+      id: true,
+      status: true,
+      decisionDeadline: true,
+      applicationId: true,
+      revisionNumber: true,
+      application: { select: { status: true } },
+    },
   });
   if (!offer) return null;
   // Only the latest revision of an offer carries the deadline reminder.
@@ -106,7 +113,8 @@ export async function loadReminderSource(
     status: offer.status,
     decisionDeadline: toDateOnlyOrNull(offer.decisionDeadline),
     timezone,
-    enabled: offerReminders && newer === 0,
+    // A closed application's offer is no longer pending (matches the dashboard and calendar).
+    enabled: offerReminders && newer === 0 && offer.application.status !== "CLOSED",
   };
 }
 
@@ -268,6 +276,8 @@ export async function afterApplicationStatusChange(
 ): Promise<void> {
   const interviews = await tx.interview.findMany({ where: { userId, applicationId }, select: { id: true } });
   for (const interview of interviews) await syncReminders(tx, userId, { interviewId: interview.id });
+  const offers = await tx.offer.findMany({ where: { userId, applicationId }, select: { id: true } });
+  for (const offer of offers) await syncReminders(tx, userId, { offerId: offer.id });
 }
 
 /**

@@ -171,7 +171,12 @@ export async function getDashboard(at?: Date): Promise<DashboardData> {
     prisma.task.count({ where: { userId, status: "SUGGESTED" } }),
     prisma.offer.findMany({
       where: { userId },
-      select: { applicationId: true, revisionNumber: true, status: true },
+      select: {
+        applicationId: true,
+        revisionNumber: true,
+        status: true,
+        application: { select: { status: true } },
+      },
       orderBy: { revisionNumber: "desc" },
     }),
     prisma.application.findMany({
@@ -226,14 +231,17 @@ export async function getDashboard(at?: Date): Promise<DashboardData> {
     else pipeline.applied += 1;
   }
 
-  // Latest revision per application decides whether an offer is pending.
+  // Latest revision per application decides whether an offer is pending; a
+  // closed application's offer no longer is, whatever its status.
   const latestOfferByApplication = new Map<string, (typeof offers)[number]>();
   for (const offer of offers) {
     if (!latestOfferByApplication.has(offer.applicationId))
       latestOfferByApplication.set(offer.applicationId, offer);
   }
   const pendingOffers = [...latestOfferByApplication.values()].filter(
-    (offer) => offer.status === "RECEIVED" || offer.status === "NEGOTIATING",
+    (offer) =>
+      (offer.status === "RECEIVED" || offer.status === "NEGOTIATING") &&
+      offer.application.status !== "CLOSED",
   ).length;
 
   const toInterview = (row: (typeof upcoming)[number]): DashboardInterview => ({

@@ -1,7 +1,7 @@
 import "server-only";
 import { StageCategory } from "@/generated/prisma/enums";
 import { requireWorkspace } from "@/features/workspace/data";
-import { parseDateOnly, toDateOnly, utcToZonedParts } from "@/lib/dates";
+import { parseDateOnly, toDateOnly, toDateOnlyOrNull } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import {
   summarize,
@@ -36,7 +36,7 @@ export async function getAnalytics(
         appliedOn: true,
         status: true,
         outcome: true,
-        firstResponseAt: true,
+        firstResponseOn: true,
         stage: { select: { name: true, category: true } },
         opportunity: { select: { source: true } },
         _count: { select: { interviews: true, offers: true } },
@@ -54,7 +54,7 @@ export async function getAnalytics(
     stageName: row.stage.name,
     stageCategory: row.stage.category,
     source: row.opportunity.source,
-    respondedOn: row.firstResponseAt ? utcToZonedParts(row.firstResponseAt, preferences.timezone).date : null,
+    respondedOn: toDateOnlyOrNull(row.firstResponseOn),
     interviewCount: row._count.interviews,
     offerCount: row._count.offers,
     historyCategories: row.activities

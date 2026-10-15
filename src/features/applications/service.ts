@@ -23,6 +23,15 @@ export type SubmitApplicationInput = {
 };
 
 /**
+ * Rejects an application date after today in the user's timezone: it would
+ * date follow-ups in the future and leave no valid date for a response.
+ */
+export function assertNotFutureApplicationDate(appliedOn: string, timezone: string): void {
+  if (appliedOn > todayInTimeZone(timezone))
+    throw new DomainError("The application date can't be in the future.");
+}
+
+/**
  * Creates an application attempt inside an existing transaction: verifies
  * the opportunity and stage belong to the user (and the stage to their
  * default pipeline), numbers the attempt, logs the activity event and, when
@@ -33,6 +42,7 @@ export async function submitApplicationInTx(
   ctx: WorkspaceContext,
   input: SubmitApplicationInput,
 ): Promise<string> {
+  assertNotFutureApplicationDate(input.appliedOn, ctx.timezone);
   const opportunity = await tx.jobOpportunity.findFirst({
     where: { id: input.opportunityId, userId: ctx.userId },
     select: { id: true, title: true, archivedAt: true, company: { select: { name: true } } },

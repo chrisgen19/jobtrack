@@ -201,7 +201,7 @@ export function OfferList({ applicationId, offers, defaults, applicationClosed }
         confirmLabel={decision?.decision === "ACCEPTED" ? "Accept offer" : "Decline offer"}
         description={
           applicationClosed
-            ? "The offer status will be updated. The application is already closed."
+            ? `The application is already closed; its outcome will be set to “${decision?.decision === "ACCEPTED" ? "Accepted" : "Offer declined"}”. Your other applications are not changed.`
             : `This closes the application as “${decision?.decision === "ACCEPTED" ? "Accepted" : "Offer declined"}”. Your other applications are not changed.`
         }
         onConfirm={async () => {

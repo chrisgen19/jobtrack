@@ -25,14 +25,18 @@ import {
   todayInTimeZone,
   toDateOnly,
   toDateOnlyOrNull,
-  utcToZonedParts,
   zonedToUtc,
 } from "@/lib/dates";
 import { APPLICATION_OUTCOME_LABEL } from "@/lib/labels";
 import { decimalToString } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import type { ApplicationDetailsInput, ApplyInput } from "./schemas";
-import { changeStageInTx, submitApplicationInTx, type WorkspaceContext } from "./service";
+import {
+  assertNotFutureApplicationDate,
+  changeStageInTx,
+  submitApplicationInTx,
+  type WorkspaceContext,
+} from "./service";
 
 function contextOf({ user, preferences }: Workspace): WorkspaceContext {
   return {
@@ -64,7 +68,7 @@ async function loadOwnedApplication(userId: string, applicationId: string) {
       outcome: true,
       opportunityId: true,
       appliedOn: true,
-      firstResponseAt: true,
+      firstResponseOn: true,
     },
   });
   if (!application) throw new NotFoundError("Application");
@@ -169,9 +173,13 @@ export async function recordEmployerResponse(applicationId: string, respondedOn:
     );
   if (respondedOn > todayInTimeZone(preferences.timezone))
     throw new DomainError("The response date can't be in the future.");
+  // The timeline needs an instant: noon local keeps it on the chosen day.
   const respondedAt = zonedToUtc(respondedOn, "12:00", preferences.timezone);
   await prisma.$transaction(async (tx) => {
-    await tx.application.update({ where: { id: application.id }, data: { firstResponseAt: respondedAt } });
+    await tx.application.update({
+      where: { id: application.id },
+      data: { firstResponseOn: parseDateOnly(respondedOn) },
+    });
     await recordActivity(tx, {
       userId: user.id,
       opportunityId: application.opportunityId,
@@ -187,9 +195,9 @@ export async function recordEmployerResponse(applicationId: string, respondedOn:
 export async function updateApplicationDetails(input: ApplicationDetailsInput): Promise<void> {
   const { user, preferences } = await requireWorkspace();
   const application = await loadOwnedApplication(user.id, input.applicationId);
-  if (application.firstResponseAt) {
-    // Same calendar date analytics derives from the stored response instant.
-    const respondedOn = utcToZonedParts(application.firstResponseAt, preferences.timezone).date;
+  assertNotFutureApplicationDate(input.appliedOn, preferences.timezone);
+  if (application.firstResponseOn) {
+    const respondedOn = toDateOnly(application.firstResponseOn);
     if (input.appliedOn > respondedOn)
       throw new DomainError(
         `The application date can't be after the employer's response (${formatDateOnly(respondedOn)}).`,
@@ -267,7 +275,7 @@ export type ApplicationDetail = {
   outcome: ApplicationOutcome | null;
   closedAt: Date | null;
   stageChangedAt: Date;
-  firstResponseAt: Date | null;
+  firstResponseOn: string | null;
   notes: string | null;
   stage: StageOption;
   stages: StageOption[];
@@ -316,7 +324,7 @@ export async function getApplicationDetail(applicationId: string): Promise<Appli
       outcome: true,
       closedAt: true,
       stageChangedAt: true,
-      firstResponseAt: true,
+      firstResponseOn: true,
       notes: true,
       stage: { select: stageSelect },
       pipeline: { select: { stages: { orderBy: { position: "asc" }, select: stageSelect } } },
@@ -359,7 +367,7 @@ export async function getApplicationDetail(applicationId: string): Promise<Appli
     outcome: row.outcome,
     closedAt: row.closedAt,
     stageChangedAt: row.stageChangedAt,
-    firstResponseAt: row.firstResponseAt,
+    firstResponseOn: toDateOnlyOrNull(row.firstResponseOn),
     notes: row.notes,
     stage: row.stage,
     stages: row.pipeline.stages,

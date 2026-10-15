@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { beforeAccountDelete } from "@/features/account/deletion";
 import { getAnalytics } from "@/features/analytics/data";
 import {
+  closeApplication,
   getApplicationDetail,
   listActivity,
   recordEmployerResponse,
@@ -16,6 +17,7 @@ import {
   updateContact,
 } from "@/features/contacts/data";
 import { contactSchema } from "@/features/contacts/schemas";
+import { getDashboard } from "@/features/dashboard/data";
 import {
   attachDocument,
   deleteDocument,
@@ -344,6 +346,33 @@ describe("offers", () => {
     expect(events.map((event) => event.type)).not.toContain("OFFER_DECLINED");
   });
 
+  it("stops treating a closed application's offer as pending, and lets a decision replace the closed outcome", async () => {
+    const { user, applicationId } = await setup();
+    const today = todayInTimeZone("Asia/Manila");
+    const offerId = await createOffer(offer(applicationId, "100000", addDaysToDateOnly(today, 10)));
+    const deadlines = () => listOfferDeadlines(today, addDaysToDateOnly(today, 30));
+    const pendingReminders = () =>
+      prisma.reminder.count({ where: { userId: user.id, offerId, status: "PENDING" } });
+    expect((await getDashboard()).metrics.pendingOffers).toBe(1);
+    expect(await deadlines()).toHaveLength(1);
+    expect(await pendingReminders()).toBeGreaterThan(0);
+
+    // Closed while the offer is still open: no longer pending anywhere.
+    await closeApplication(applicationId, "REJECTED");
+    expect((await getDashboard()).metrics).toMatchObject({ pendingOffers: 0, applicationsWithOffers: 1 });
+    expect(await deadlines()).toHaveLength(0);
+    expect(await pendingReminders()).toBe(0);
+
+    // Accepting it afterwards replaces the contradicting outcome, and says so.
+    await decideOffer(offerId, "ACCEPTED");
+    expect(await prisma.application.findUniqueOrThrow({ where: { id: applicationId } })).toMatchObject({
+      status: "CLOSED",
+      outcome: "ACCEPTED",
+    });
+    const events = await listActivity({ applicationId });
+    expect(events.map((event) => event.summary)).toContain("Closed: Accepted (was Rejected)");
+  });
+
   it("shows only the latest revision's deadline on the calendar", async () => {
     const { applicationId } = await setup();
     const { applicationId: other } = await createOpportunity(
@@ -483,6 +512,23 @@ describe("analytics and export", () => {
     expect(report.medianResponseDays).toBe(4);
   });
 
+  it("keeps the recorded response date when the timezone changes", async () => {
+    const { applicationId } = await setup(); // applied on 2026-10-01
+    await updateRegionalPreferences({ timezone: "America/Los_Angeles", currency: "PHP", weekStartsOn: 1 });
+    await recordEmployerResponse(applicationId, "2026-10-05");
+    // Moving 15 hours east used to turn the stored noon-in-Los-Angeles instant into Oct 6.
+    await updateRegionalPreferences({ timezone: "Asia/Manila", currency: "PHP", weekStartsOn: 1 });
+
+    expect((await getApplicationDetail(applicationId))!.firstResponseOn).toBe("2026-10-05");
+    expect((await getAnalytics("2026-09-01", "2026-10-31", "week")).medianResponseDays).toBe(4);
+    const editAppliedOn = (appliedOn: string) =>
+      updateApplicationDetails(applicationDetailsSchema.parse({ applicationId, appliedOn }));
+    await expect(editAppliedOn("2026-10-06")).rejects.toThrow(
+      /after the employer's response \(Oct 5, 2026\)/,
+    );
+    await editAppliedOn("2026-10-05");
+  });
+
   it("keeps the response date between the application date and today", async () => {
     const { applicationId } = await setup(); // applied on 2026-10-01
     const tomorrow = addDaysToDateOnly(todayInTimeZone("Asia/Manila"), 1);
@@ -491,7 +537,7 @@ describe("analytics and export", () => {
     );
     await expect(recordEmployerResponse(applicationId, tomorrow)).rejects.toThrow(/can't be in the future/);
     expect(
-      (await prisma.application.findUniqueOrThrow({ where: { id: applicationId } })).firstResponseAt,
+      (await prisma.application.findUniqueOrThrow({ where: { id: applicationId } })).firstResponseOn,
     ).toBeNull();
 
     await recordEmployerResponse(applicationId, "2026-10-05");

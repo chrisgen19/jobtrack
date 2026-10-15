@@ -217,9 +217,7 @@ function Overview({
           {formatInTimeZone(application.stageChangedAt, timezone, "MMM d, yyyy")}
         </DetailFact>
         <DetailFact label="First response">
-          {application.firstResponseAt
-            ? formatInTimeZone(application.firstResponseAt, timezone, "MMM d, yyyy")
-            : "Not recorded"}
+          {application.firstResponseOn ? formatDateOnly(application.firstResponseOn) : "Not recorded"}
         </DetailFact>
         <DetailFact label="Closed">
           {application.closedAt

@@ -51,7 +51,7 @@ sign out + password reset, mobile navigation).
 - [x] Duplicate warnings (same normalized posting URL, or same company + title) via an owner-scoped GET route; never blocks saving
 - [x] Applications: mark as applied (date, method, submitted via, starting stage), reapply with numbered attempts, history of every attempt
 - [x] Status vs outcome: pause/resume, close with an explicit outcome (no auto-rejection), reopen clears outcome; DB CHECK enforces it
-- [x] Employer response date (for response-time analytics) and timeline notes; the server keeps it between the application date and today, and rejects an application date after a recorded response
+- [x] Employer response date (for response-time analytics) and timeline notes; stored date-only like the application date, so a timezone change never shifts it; the server keeps it between the application date and today, and rejects an application date after a recorded response or in the future
 - [x] Custom pipeline stages (`/settings/pipeline`): add, rename, recolour, reorder, disable, delete with a required move target when in use (closed applications move too, with a logged stage change); category fixed for analytics
 - [x] Stage changes in a transaction with `STAGE_CHANGED` activity events storing name snapshots (renames never rewrite history)
 - [x] Suggested follow-up task after applying (editable/dismissible `SUGGESTED` task, never an outgoing email)
@@ -95,7 +95,7 @@ links use `.filter({ visible: true })` so they never target the hidden copy.
 - [x] Owner-only download route (404 for other users), versions via "upload new version" (older versions stay attached), every document delete queues object removal in the same transaction through the `documents_queue_file_cleanup` trigger (a crash or storage outage afterwards cannot orphan the file)
 - [x] Attach exact versions to applications with a "submitted" flag; library page; application Documents tab
 - [x] Contacts: CRUD under companies (find-or-create), email/phone/LinkedIn, interview attendee picker limited to the company's contacts
-- [x] Offers: immutable revisions, first offer moves the application to the offer stage (logged), decision task suggestion, accept/decline closes only that application, decisions and status changes are conditional updates (concurrent tabs never overwrite a decision), offer deadlines on the calendar (latest revision only)
+- [x] Offers: immutable revisions, first offer moves the application to the offer stage (logged), decision task suggestion, accept/decline closes only that application (on an already closed attempt the decision replaces a contradicting outcome, logged), decisions and status changes are conditional updates (concurrent tabs never overwrite a decision), offer deadlines on the calendar (latest revision only); a closed application's offer no longer counts as pending on the dashboard, calendar or deadline reminders
 - [x] Analytics (`/analytics`): date-range presets/custom range, week/month trend, interview and offer rates over distinct applications, funnel using stage history snapshots, source effectiveness, open stages, outcomes, median recorded response time, cohort caveats
 - [x] Exports: CSV (attempts) and full JSON backup without password hashes, tokens or storage keys
 - [x] Account deletion (Settings → Account & data): email + password confirmation via Better Auth `deleteUser`; cascades all rows, and the documents trigger queues private file removal in that same transaction (covers uploads that commit while the deletion runs; the worker skips files still referenced)
