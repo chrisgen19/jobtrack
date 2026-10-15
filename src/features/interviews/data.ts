@@ -135,7 +135,9 @@ async function loadInterview(
 /**
  * Moves an interview to a new time, keeping the same record: logs the
  * previous and new schedule (reschedule history + activity event) and bumps
- * `scheduleRevision` so reminders for the old time become obsolete.
+ * `scheduleRevision` so reminders for the old time become obsolete. An
+ * unchanged schedule is a no-op; a changed one on a completed interview is
+ * rejected.
  */
 async function rescheduleInTx(
   tx: TransactionClient,
@@ -144,13 +146,13 @@ async function rescheduleInTx(
   schedule: ScheduleInput,
   reason?: string,
 ): Promise<void> {
-  if (interview.status === "COMPLETED") throw new DomainError("Completed interviews can't be rescheduled.");
   const { startsAt, endsAt } = toInstants(schedule);
   const unchanged =
     startsAt?.getTime() === interview.startsAt?.getTime() &&
     endsAt?.getTime() === interview.endsAt?.getTime() &&
     schedule.timezone === interview.timezone;
   if (unchanged) return;
+  if (interview.status === "COMPLETED") throw new DomainError("Completed interviews can't be rescheduled.");
 
   const status: InterviewStatus = !startsAt
     ? "UNSCHEDULED"
@@ -209,7 +211,10 @@ export async function rescheduleInterview(input: RescheduleInput): Promise<void>
   });
 }
 
-/** Edits interview details; a changed date/time goes through rescheduling. */
+/**
+ * Edits interview details; a changed date/time goes through rescheduling, so
+ * on a completed interview it fails the whole edit instead of being dropped.
+ */
 export async function updateInterview(input: UpdateInterviewInput): Promise<void> {
   const workspace = await requireWorkspace();
   const userId = workspace.user.id;
@@ -230,15 +235,7 @@ export async function updateInterview(input: UpdateInterviewInput): Promise<void
       },
     });
     await setContacts(tx, userId, interview.id, input.contactIds);
-    if (interview.status !== "COMPLETED") {
-      await rescheduleInTx(
-        tx,
-        workspace,
-        { ...interview, title: input.title },
-        input,
-        input.rescheduleReason,
-      );
-    }
+    await rescheduleInTx(tx, workspace, { ...interview, title: input.title }, input, input.rescheduleReason);
     await recordActivity(tx, {
       userId,
       opportunityId: interview.application.opportunityId,

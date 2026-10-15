@@ -72,7 +72,7 @@ Milestones 4-5; deleting a job/interview does not yet queue Google Calendar even
 - [x] Unlimited interview rounds per application (same type repeated freely), with title, type, round number, date/time, duration, IANA timezone, format, meeting link, location, interviewers, prep notes, feedback, reminder lead time
 - [x] Scheduling status (unscheduled, scheduled, rescheduled, completed, cancelled) kept separate from the result (pending, awaiting feedback, passed, not passed) and from the application outcome
 - [x] Timezone-safe storage: wall-clock + IANA zone converted to a UTC instant; shown in the user's timezone with the interview's own zone alongside when different
-- [x] Rescheduling keeps the same record, stores history rows (`interview_reschedules`), bumps `schedule_revision` (for reminder dedupe) and logs before/after in the timeline
+- [x] Rescheduling keeps the same record, stores history rows (`interview_reschedules`), bumps `schedule_revision` (for reminder dedupe) and logs before/after in the timeline; completed interviews keep their time (the edit form shows it read-only and the server rejects a changed schedule instead of dropping it)
 - [x] Completing an interview suggests an editable thank-you follow-up; cancelling never rejects the application
 - [x] Tasks: create/edit/complete/reopen/dismiss/delete, linked to an application or standalone, due date + optional time in the user's timezone, priority, reminder lead time
 - [x] Task groups: Suggested, Overdue, Today, Upcoming, No due date, Completed; suggestions can be accepted, edited or dismissed
@@ -92,10 +92,10 @@ links use `.filter({ visible: true })` so they never target the hidden copy.
 
 - [x] Private storage abstraction: R2/S3 driver (presigned 60 s downloads, `requestChecksumCalculation: WHEN_REQUIRED` for R2) and a dev-only local driver under `.data/uploads` (refused in production unless the test-only `UNSAFE_ALLOW_LOCAL_STORAGE` is set, which logs a warning)
 - [x] Upload route: auth, per-user rate limit, size limit, extension + MIME + magic-byte checks (PDF/DOCX), SHA-256, opaque `users/<id>/<uuid>` keys. No antivirus scanner is configured; the `BLOCKED` status is reserved for one
-- [x] Owner-only download route (404 for other users), versions via "upload new version" (older versions stay attached), delete with worker retry for object removal
+- [x] Owner-only download route (404 for other users), versions via "upload new version" (older versions stay attached), delete queues object removal in the same transaction as the metadata delete (a crash or storage outage afterwards cannot orphan the file)
 - [x] Attach exact versions to applications with a "submitted" flag; library page; application Documents tab
 - [x] Contacts: CRUD under companies (find-or-create), email/phone/LinkedIn, interview attendee picker limited to the company's contacts
-- [x] Offers: immutable revisions, first offer moves the application to the offer stage (logged), decision task suggestion, accept/decline closes only that application, offer deadlines on the calendar
+- [x] Offers: immutable revisions, first offer moves the application to the offer stage (logged), decision task suggestion, accept/decline closes only that application, decisions and status changes are conditional updates (concurrent tabs never overwrite a decision), offer deadlines on the calendar (latest revision only)
 - [x] Analytics (`/analytics`): date-range presets/custom range, week/month trend, interview and offer rates over distinct applications, funnel using stage history snapshots, source effectiveness, open stages, outcomes, median recorded response time, cohort caveats
 - [x] Exports: CSV (attempts) and full JSON backup without password hashes, tokens or storage keys
 - [x] Account deletion (Settings → Account & data): email + password confirmation via Better Auth `deleteUser`; queues private file removal durably before the delete (the worker skips files still referenced), then cascades all rows

@@ -22,7 +22,13 @@ import {
 import { getWorkspaceExport } from "@/features/export/data";
 import { createInterview } from "@/features/interviews/data";
 import { createInterviewSchema } from "@/features/interviews/schemas";
-import { createOffer, decideOffer, listApplicationOffers } from "@/features/offers/data";
+import {
+  createOffer,
+  decideOffer,
+  listApplicationOffers,
+  listOfferDeadlines,
+  setOfferStatus,
+} from "@/features/offers/data";
 import { createOfferSchema } from "@/features/offers/schemas";
 import { createOpportunity } from "@/features/opportunities/data";
 import { quickAddSchema } from "@/features/opportunities/schemas";
@@ -148,6 +154,36 @@ describe("documents", () => {
     expect(jobs.map((job) => job.task_identifier)).toContain("delete_user_files");
   });
 
+  it("commits the file cleanup job with the metadata delete, before touching storage", async () => {
+    await setup();
+    const documentId = await upload("Resume");
+    const { storageKey } = await prisma.document.findUniqueOrThrow({ where: { id: documentId } });
+    const queuedKeys = () => prisma.$queryRaw<{ payload: { storageKeys: string[] } }[]>`
+      select job.payload from graphile_worker._private_jobs job
+      join graphile_worker._private_tasks task on task.id = job.task_id
+      where task.identifier = 'delete_user_files'`;
+
+    // Simulate the process dying right after the commit: storage is never reached.
+    const deleteObject = storage.delete;
+    let seenAtDelete: string[] = [];
+    storage.delete = async () => {
+      seenAtDelete = (await queuedKeys()).flatMap((job) => job.payload.storageKeys);
+      throw new Error("process crashed");
+    };
+    try {
+      await deleteDocument(documentId);
+    } finally {
+      storage.delete = deleteObject;
+    }
+    expect(seenAtDelete).toEqual([storageKey]);
+    expect(storage.objects.has(storageKey)).toBe(true);
+
+    // The worker finishes the cleanup from the durable job.
+    const helpers = { job: { id: "test" } } as Parameters<typeof deleteUserFilesTask>[1];
+    await deleteUserFilesTask({ storageKeys: seenAtDelete }, helpers);
+    expect(storage.objects.has(storageKey)).toBe(false);
+  });
+
   it("keeps a newer version when the version it replaced is deleted", async () => {
     storage.failDeletes = false;
     const { user } = await setup();
@@ -231,7 +267,7 @@ describe("contacts", () => {
 describe("offers", () => {
   beforeEach(resetDatabase);
 
-  function offer(applicationId: string, baseSalary: string) {
+  function offer(applicationId: string, baseSalary: string, decisionDeadline?: string) {
     return createOfferSchema.parse({
       applicationId,
       positionTitle: "Full-Stack Developer",
@@ -239,8 +275,95 @@ describe("offers", () => {
       currency: "PHP",
       salaryPeriod: "MONTHLY",
       receivedOn: "2026-10-12",
+      decisionDeadline,
     });
   }
+
+  /**
+   * Starts `action` while another transaction holds an uncommitted acceptance
+   * of the offer, and commits that acceptance once `action` waits on its lock.
+   */
+  async function raceWithAcceptance(offerId: string, action: () => Promise<unknown>) {
+    let pending!: Promise<unknown>;
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.offer.update({
+          where: { id: offerId },
+          data: { status: "ACCEPTED", decidedAt: new Date() },
+        });
+        pending = action();
+        pending.catch(() => undefined);
+        for (let attempt = 0; ; attempt += 1) {
+          const [{ waiting }] = await prisma.$queryRaw<[{ waiting: number }]>`
+            select count(*)::int as waiting from pg_stat_activity
+            where datname = current_database() and wait_event_type = 'Lock'`;
+          if (waiting > 0) break;
+          if (attempt > 250) throw new Error("the competing request never waited on the offer lock");
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+      },
+      { timeout: 15_000 },
+    );
+    return pending;
+  }
+
+  it("never overwrites a concurrent decision with another status", async () => {
+    const { applicationId } = await setup();
+    const offerId = await createOffer(offer(applicationId, "100000"));
+
+    await expect(raceWithAcceptance(offerId, () => setOfferStatus(offerId, "EXPIRED"))).rejects.toThrow(
+      /already has a decision/,
+    );
+    expect(await prisma.offer.findUniqueOrThrow({ where: { id: offerId } })).toMatchObject({
+      status: "ACCEPTED",
+    });
+    await expect(setOfferStatus(crypto.randomUUID(), "EXPIRED")).rejects.toThrow(/not found/i);
+  });
+
+  it("lets only one of two concurrent decisions win", async () => {
+    const { applicationId } = await setup();
+    const offerId = await createOffer(offer(applicationId, "100000"));
+
+    await expect(raceWithAcceptance(offerId, () => decideOffer(offerId, "DECLINED"))).rejects.toThrow(
+      /already has a decision/,
+    );
+    expect(await prisma.offer.findUniqueOrThrow({ where: { id: offerId } })).toMatchObject({
+      status: "ACCEPTED",
+    });
+    expect(await prisma.application.findUniqueOrThrow({ where: { id: applicationId } })).toMatchObject({
+      outcome: null,
+    });
+    const events = await listActivity({ applicationId });
+    expect(events.map((event) => event.type)).not.toContain("OFFER_DECLINED");
+  });
+
+  it("shows only the latest revision's deadline on the calendar", async () => {
+    const { applicationId } = await setup();
+    const { applicationId: other } = await createOpportunity(
+      quickAddSchema.parse({
+        title: "Backend Developer",
+        companyName: "Other Co",
+        alreadyApplied: true,
+        appliedOn: "2026-10-02",
+      }),
+    );
+    await createOffer(offer(applicationId, "100000", "2026-10-20"));
+    const revised = await createOffer(offer(applicationId, "110000", "2026-10-22"));
+    const otherOffer = await createOffer(offer(other!, "90000", "2026-10-25"));
+
+    const deadlines = () => listOfferDeadlines("2026-10-01", "2026-10-31");
+    expect((await deadlines()).map((item) => [item.offerId, item.deadline])).toEqual(
+      expect.arrayContaining([
+        [revised, "2026-10-22"],
+        [otherOffer, "2026-10-25"],
+      ]),
+    );
+    expect(await deadlines()).toHaveLength(2);
+
+    // Deciding the latest revision must not resurface the earlier, still "received" one.
+    await decideOffer(revised, "ACCEPTED");
+    expect((await deadlines()).map((item) => item.offerId)).toEqual([otherOffer]);
+  });
 
   it("rejects a decision on a superseded revision (stale tab)", async () => {
     const { applicationId } = await setup();

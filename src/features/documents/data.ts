@@ -101,8 +101,9 @@ export async function getDocumentForDownload(documentId: string): Promise<Downlo
 
 /**
  * Deletes a document version: metadata (and its application links) first,
- * then the stored bytes. If the object store is unavailable, deletion is
- * retried by the worker so no private file is left behind.
+ * then the stored bytes. File cleanup is queued in the same transaction as
+ * the metadata delete, so a crash or storage outage afterwards cannot lose
+ * the storage key; the worker removes the object if the inline delete fails.
  */
 export async function deleteDocument(documentId: string): Promise<void> {
   const { user } = await requireWorkspace();
@@ -128,19 +129,19 @@ export async function deleteDocument(documentId: string): Promise<void> {
         details: { documentId: document.id },
       });
     }
+    // Visible to the worker only after commit, when no row references the key.
+    await enqueueJob(tx, "delete_user_files", { storageKeys: [document.storageKey] }, { maxAttempts: 20 });
     await tx.document.delete({ where: { id: document.id } });
   });
 
+  // Best effort, so the file is gone right away; the queued job is the safety net.
   try {
     await getStorage().delete(document.storageKey);
   } catch (error) {
-    logger.warn("document object delete failed; queued retry", { documentId, error: errorMessage(error) });
-    await enqueueJob(
-      prisma,
-      "delete_user_files",
-      { storageKeys: [document.storageKey] },
-      { maxAttempts: 20 },
-    );
+    logger.warn("document object delete failed; worker will retry", {
+      documentId,
+      error: errorMessage(error),
+    });
   }
 }
 

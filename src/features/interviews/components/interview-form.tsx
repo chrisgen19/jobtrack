@@ -24,6 +24,8 @@ interface InterviewFormProps {
   contacts: ContactChoice[];
   /** Edit mode: ask for a reschedule reason when the time changes. */
   originalSchedule?: { date?: string; startTime?: string; durationMinutes?: number; timezone: string };
+  /** Completed interview: its recorded time, shown read-only instead of the schedule fields. */
+  lockedSchedule?: string;
   submitLabel: string;
   onSubmit: (values: InterviewFormOutput) => Promise<ActionResult | ActionResult<unknown>>;
   onCancel: () => void;
@@ -34,6 +36,7 @@ export function InterviewForm({
   timeZones,
   contacts,
   originalSchedule,
+  lockedSchedule,
   submitLabel,
   onSubmit,
   onCancel,
@@ -97,40 +100,52 @@ export function InterviewForm({
       <FormField id="interview-round" label="Round number" error={err("roundNumber")}>
         <TextInput id="interview-round" type="number" min={1} max={50} {...form.register("roundNumber")} />
       </FormField>
-      <FormField
-        id="interview-date"
-        label="Date"
-        error={err("date")}
-        hint="Leave empty if the time isn't set yet."
-      >
-        <TextInput
-          type="date"
-          {...fieldAria("interview-date", err("date"), true)}
-          {...form.register("date")}
-        />
-      </FormField>
-      <FormField id="interview-time" label="Start time" error={err("startTime")}>
-        <TextInput
-          type="time"
-          {...fieldAria("interview-time", err("startTime"))}
-          {...form.register("startTime")}
-        />
-      </FormField>
-      <FormField id="interview-duration" label="Duration">
-        <SelectInput
-          id="interview-duration"
-          placeholder="Not set"
-          options={DURATION_OPTIONS}
-          {...form.register("durationMinutes")}
-        />
-      </FormField>
-      <FormField id="interview-timezone" label="Timezone" hint="The timezone the employer gave you.">
-        <SelectInput
-          id="interview-timezone"
-          options={timeZones.map((zone) => ({ value: zone, label: zone.replaceAll("_", " ") }))}
-          {...form.register("timezone")}
-        />
-      </FormField>
+      {lockedSchedule ? (
+        <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
+          <p className="text-[11px] font-bold text-[#657c6b]">Schedule</p>
+          <p className="text-[13px] text-[#304a3b]">{lockedSchedule}</p>
+          <p className="text-[10px] leading-normal text-[#99a69d]">
+            Completed interviews keep the time they were held.
+          </p>
+        </div>
+      ) : (
+        <>
+          <FormField
+            id="interview-date"
+            label="Date"
+            error={err("date")}
+            hint="Leave empty if the time isn't set yet."
+          >
+            <TextInput
+              type="date"
+              {...fieldAria("interview-date", err("date"), true)}
+              {...form.register("date")}
+            />
+          </FormField>
+          <FormField id="interview-time" label="Start time" error={err("startTime")}>
+            <TextInput
+              type="time"
+              {...fieldAria("interview-time", err("startTime"))}
+              {...form.register("startTime")}
+            />
+          </FormField>
+          <FormField id="interview-duration" label="Duration">
+            <SelectInput
+              id="interview-duration"
+              placeholder="Not set"
+              options={DURATION_OPTIONS}
+              {...form.register("durationMinutes")}
+            />
+          </FormField>
+          <FormField id="interview-timezone" label="Timezone" hint="The timezone the employer gave you.">
+            <SelectInput
+              id="interview-timezone"
+              options={timeZones.map((zone) => ({ value: zone, label: zone.replaceAll("_", " ") }))}
+              {...form.register("timezone")}
+            />
+          </FormField>
+        </>
+      )}
       {scheduleChanged ? (
         <FormField
           id="interview-reason"

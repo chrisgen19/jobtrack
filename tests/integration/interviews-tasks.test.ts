@@ -8,8 +8,13 @@ import {
   createInterview,
   listApplicationInterviews,
   rescheduleInterview,
+  updateInterview,
 } from "@/features/interviews/data";
-import { createInterviewSchema, rescheduleInterviewSchema } from "@/features/interviews/schemas";
+import {
+  createInterviewSchema,
+  rescheduleInterviewSchema,
+  updateInterviewSchema,
+} from "@/features/interviews/schemas";
 import { createOpportunity } from "@/features/opportunities/data";
 import { quickAddSchema } from "@/features/opportunities/schemas";
 import {
@@ -161,6 +166,48 @@ describe("interviews", () => {
         }),
       ),
     ).rejects.toThrow(/Completed/);
+  });
+
+  it("edits a completed interview's details but rejects a changed schedule instead of dropping it", async () => {
+    const { applicationId } = await setup();
+    const id = await createInterview(
+      interview(applicationId, {
+        title: "Screen",
+        date: "2026-10-15",
+        startTime: "10:00",
+        durationMinutes: 45,
+      }),
+    );
+    await completeInterview(id, "PASSED");
+    const edit = (input: Record<string, unknown>) =>
+      updateInterview(
+        updateInterviewSchema.parse({
+          interviewId: id,
+          title: "Screen",
+          timezone: TZ,
+          date: "2026-10-15",
+          startTime: "10:00",
+          durationMinutes: "45",
+          ...input,
+        }),
+      );
+
+    await expect(edit({ title: "Screen (typo fixed)", startTime: "11:00" })).rejects.toThrow(
+      /Completed interviews can't be rescheduled/,
+    );
+    const untouched = await prisma.interview.findUniqueOrThrow({ where: { id } });
+    expect(untouched).toMatchObject({ title: "Screen", status: "COMPLETED", scheduleRevision: 0 });
+
+    await edit({ title: "Screen (typo fixed)", interviewers: "Maya Chen" });
+    const [round] = await listApplicationInterviews(applicationId);
+    expect(round).toMatchObject({
+      title: "Screen (typo fixed)",
+      interviewers: "Maya Chen",
+      status: "COMPLETED",
+      result: "PASSED",
+    });
+    expect(round!.startsAt).toEqual(untouched.startsAt);
+    expect(await prisma.interviewReschedule.count({ where: { interviewId: id } })).toBe(0);
   });
 
   it("does not let another user touch an interview", async () => {

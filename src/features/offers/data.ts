@@ -10,6 +10,8 @@ import { decimalToString, formatMoney, PERIOD_SUFFIX } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import type { CreateOfferInput } from "./schemas";
 
+const DECIDED: OfferStatus[] = ["ACCEPTED", "DECLINED"];
+
 function offerSummary(input: {
   baseSalary?: string | null;
   currency: string;
@@ -146,7 +148,12 @@ export async function decideOffer(offerId: string, decision: "ACCEPTED" | "DECLI
     if (newer > 0)
       throw new DomainError("A newer revision of this offer exists. Decide on the latest revision.");
 
-    await tx.offer.update({ where: { id: offer.id }, data: { status: decision, decidedAt: new Date() } });
+    // Conditional on still being undecided, so of two concurrent decisions only one wins.
+    const decided = await tx.offer.updateMany({
+      where: { id: offer.id, userId: user.id, status: { notIn: DECIDED } },
+      data: { status: decision, decidedAt: new Date() },
+    });
+    if (decided.count === 0) throw new DomainError("This offer already has a decision.");
     const { application } = offer;
     await recordActivity(tx, {
       userId: user.id,
@@ -177,20 +184,27 @@ export async function decideOffer(offerId: string, decision: "ACCEPTED" | "DECLI
   });
 }
 
+/**
+ * Sets a non-decision status. The update is conditional on the offer still
+ * being undecided: PostgreSQL re-checks that condition after waiting for a
+ * concurrent decision's row lock, so an accepted or declined offer is never
+ * overwritten.
+ */
 export async function setOfferStatus(
   offerId: string,
   status: "RECEIVED" | "NEGOTIATING" | "EXPIRED" | "RESCINDED",
 ): Promise<void> {
   const { user } = await requireWorkspace();
-  const offer = await prisma.offer.findFirst({
-    where: { id: offerId, userId: user.id },
-    select: { status: true },
-  });
-  if (!offer) throw new NotFoundError("Offer");
-  if (offer.status === "ACCEPTED" || offer.status === "DECLINED")
-    throw new DomainError("This offer already has a decision.");
   await prisma.$transaction(async (tx) => {
-    await tx.offer.updateMany({ where: { id: offerId, userId: user.id }, data: { status } });
+    const updated = await tx.offer.updateMany({
+      where: { id: offerId, userId: user.id, status: { notIn: DECIDED } },
+      data: { status },
+    });
+    if (updated.count === 0) {
+      const exists = await tx.offer.count({ where: { id: offerId, userId: user.id } });
+      if (!exists) throw new NotFoundError("Offer");
+      throw new DomainError("This offer already has a decision.");
+    }
     await afterOfferChange(tx, user.id, offerId);
   });
 }
@@ -256,10 +270,14 @@ export type OfferDeadline = {
   deadline: string;
 };
 
-/** Decision deadlines of undecided offers within [from, to] (calendar). */
+/**
+ * Decision deadlines of undecided offers within [from, to] (calendar). Only
+ * the latest revision per application counts, like reminders and the
+ * dashboard: earlier revisions keep their old status and deadline.
+ */
 export async function listOfferDeadlines(from: string, to: string): Promise<OfferDeadline[]> {
   const { user } = await requireWorkspace();
-  const rows = await prisma.offer.findMany({
+  const candidates = await prisma.offer.findMany({
     where: {
       userId: user.id,
       status: { in: ["RECEIVED", "NEGOTIATING"] },
@@ -268,11 +286,20 @@ export async function listOfferDeadlines(from: string, to: string): Promise<Offe
     select: {
       id: true,
       applicationId: true,
+      revisionNumber: true,
       positionTitle: true,
       decisionDeadline: true,
       application: { select: { opportunity: { select: { company: { select: { name: true } } } } } },
     },
   });
+  if (candidates.length === 0) return [];
+  const latest = await prisma.offer.groupBy({
+    by: ["applicationId"],
+    where: { userId: user.id, applicationId: { in: candidates.map((row) => row.applicationId) } },
+    _max: { revisionNumber: true },
+  });
+  const latestRevision = new Map(latest.map((group) => [group.applicationId, group._max.revisionNumber]));
+  const rows = candidates.filter((row) => latestRevision.get(row.applicationId) === row.revisionNumber);
   return rows.map((row) => ({
     offerId: row.id,
     applicationId: row.applicationId,

@@ -223,11 +223,17 @@ function EditInterview({
     durationMinutes: duration,
     timezone: interview.timezone,
   };
+  const locked = interview.status === "COMPLETED";
   return (
     <InterviewForm
       timeZones={timeZones}
       contacts={contacts}
       originalSchedule={original}
+      lockedSchedule={
+        locked
+          ? `${scheduleLabel(interview, interview.timezone)} (${interview.timezone.replaceAll("_", " ")})`
+          : undefined
+      }
       submitLabel="Save changes"
       onCancel={onDone}
       defaultValues={{
@@ -248,7 +254,9 @@ function EditInterview({
         contactIds: interview.contacts.map((contact) => contact.id),
       }}
       onSubmit={async (values) => {
-        const result = await updateInterviewAction({ ...values, interviewId: interview.id });
+        // A completed interview always sends its recorded schedule back unchanged.
+        const schedule = locked ? original : {};
+        const result = await updateInterviewAction({ ...values, ...schedule, interviewId: interview.id });
         if (result.ok) {
           toast.success("Interview updated");
           onDone();
