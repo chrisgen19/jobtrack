@@ -58,7 +58,8 @@ sign out + password reset, mobile navigation).
 - [x] Jobs table (TanStack Table v9, client sorting) with view/search/stage/priority/work/source filters in the URL
 - [x] Kanban board (dnd-kit): virtual Saved column, optimistic moves, keyboard dragging between columns, live announcements, "Move to" menu on every card, drop a saved job on a stage to record an application
 - [x] Pipeline peek drawer: application card titles open a read-only summary in a right-hand Sheet via an intercepting route in the `@peek` slot (`/pipeline/@peek/(..)applications/[id]`), with an "Open full page" link; refresh or a shared link renders the full page. The sidebar and breadcrumb keep Pipeline current while the drawer masks the URL
-- [ ] Saved-card job drawer (`feature/pipeline-job-peek`): Saved column titles open a job summary via `/pipeline/@peek/(..)jobs/[id]`, with "Mark as applied" (replaces the URL with the new application's drawer, so closing returns to the board) and "Open full page". Checked by hand in a browser; the e2e step has not run in CI yet
+- [x] Saved-card job drawer: Saved column titles open a job summary via `/pipeline/@peek/(..)jobs/[id]`, with "Mark as applied" (replaces the URL with the new application's drawer, so closing returns to the board) and "Open full page"
+- [x] Drawer keyboard pass: Enter on a card title opens the drawer (the card itself is the dnd-kit activator, so Enter/Space only pick up a focused card), focus stays inside while open and returns to the card title on close, badges carry screen-reader labels. Checked with keyboard-only Playwright runs and the accessibility tree; not yet with a real screen reader (NVDA/VoiceOver)
 - [x] Job detail page, application detail page (overview + timeline)
 - [x] CSV export of jobs and attempts (RFC 4180, formula-injection safe)
 

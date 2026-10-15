@@ -108,6 +108,16 @@ test.describe("core job tracker", () => {
     await expect(peek).toBeHidden();
     await expect(page).toHaveURL(/\/pipeline$/);
 
+    // Keyboard: Enter on the title link opens the drawer (it must not start a card drag),
+    // and closing it returns focus to that link.
+    const titleLink = page.getByRole("link", { name: "Full-Stack Developer", exact: true });
+    await titleLink.focus();
+    await page.keyboard.press("Enter");
+    await expect(peek).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(peek).toBeHidden();
+    await expect(titleLink).toBeFocused();
+
     // Kanban: a Saved card opens the job drawer; "Mark as applied" swaps it for the new
     // application's drawer, and closing that returns to the board, not to the job drawer.
     await page.getByRole("link", { name: "Senior Engineer", exact: true }).click();
@@ -124,6 +134,7 @@ test.describe("core job tracker", () => {
     await page.keyboard.press("Escape");
     await expect(appliedPeek).toBeHidden();
     await expect(page).toHaveURL(/\/pipeline$/);
+    await expect(page.getByRole("link", { name: "Senior Engineer", exact: true })).toBeFocused();
     await expect(page.getByRole("region", { name: /Saved column, 0 cards/ })).toBeVisible();
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -13,7 +14,12 @@ import { Skeleton } from "@/components/ui/skeleton";
  */
 export function PeekSheet({ pathPrefix, children }: { pathPrefix: string; children: React.ReactNode }) {
   const router = useRouter();
-  const open = usePathname().startsWith(pathPrefix);
+  const pathname = usePathname();
+  const open = pathname.startsWith(pathPrefix);
+  const openPath = useRef(pathname);
+  useEffect(() => {
+    if (open) openPath.current = pathname;
+  }, [open, pathname]);
   return (
     <Sheet
       open={open}
@@ -24,11 +30,26 @@ export function PeekSheet({ pathPrefix, children }: { pathPrefix: string; childr
       <SheetContent
         side="right"
         className="gap-0 bg-white p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[550px]"
+        onCloseAutoFocus={(event) => {
+          // Radix returns focus to a trigger, but this drawer opens by navigation and has none,
+          // so focus would fall to <body>. Return it to the page link for the drawer's URL
+          // instead (the card title that opened it, or the card it became after applying).
+          const link = findPageLink(openPath.current);
+          if (!link) return;
+          event.preventDefault();
+          link.focus();
+        }}
       >
         {children}
       </SheetContent>
     </Sheet>
   );
+}
+
+/** First link to `href` on the page itself, skipping dialogs (the drawer's own "Open full page"). */
+function findPageLink(href: string): HTMLElement | null {
+  const links = document.querySelectorAll<HTMLElement>(`a[href="${CSS.escape(href)}"]`);
+  return [...links].find((link) => !link.closest('[role="dialog"]')) ?? null;
 }
 
 /** Shown when the record behind the drawer is missing or belongs to someone else. */

@@ -103,7 +103,9 @@ function JobPeekHeader({ job }: { job: OpportunityDetail }) {
           </SheetDescription>
         </div>
       </div>
+      {/* The sr-only labels give each badge its meaning ("Priority: Medium", not just "Medium"). */}
       <div className="mt-4 flex flex-wrap items-center gap-1.5">
+        <span className="sr-only">{latest && latest.status !== "CLOSED" ? "Stage:" : "Status:"}</span>
         {!latest ? (
           <SavedBadge />
         ) : latest.status === "CLOSED" ? (
@@ -111,6 +113,7 @@ function JobPeekHeader({ job }: { job: OpportunityDetail }) {
         ) : (
           <StageBadge name={latest.stage.name} category={latest.stage.category} color={latest.stage.color} />
         )}
+        <span className="sr-only">Priority:</span>
         <PriorityBadge priority={job.priority} />
         {job.archivedAt ? <StatusBadge label="Archived" /> : null}
       </div>

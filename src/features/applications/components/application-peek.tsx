@@ -91,15 +91,19 @@ function PeekHeader({ application }: { application: ApplicationDetail }) {
           </SheetDescription>
         </div>
       </div>
+      {/* The sr-only labels give each badge its meaning ("Priority: Medium", not just "Medium"). */}
       <div className="mt-4 flex flex-wrap items-center gap-1.5">
+        <span className="sr-only">Stage:</span>
         <StageBadge
           name={application.stage.name}
           category={application.stage.category}
           color={application.stage.color}
         />
+        <span className="sr-only">Status:</span>
         {application.status === "CLOSED" ? <ClosedBadge outcome={application.outcome} /> : null}
         {application.status === "PAUSED" ? <StatusBadge label="Paused" tone="amber" /> : null}
         {application.status === "ACTIVE" ? <StatusBadge label="Active" tone="green" /> : null}
+        <span className="sr-only">Priority:</span>
         <PriorityBadge priority={opportunity.priority} />
       </div>
     </SheetHeader>
