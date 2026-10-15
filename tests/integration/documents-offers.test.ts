@@ -42,7 +42,15 @@ import { createOfferSchema } from "@/features/offers/schemas";
 import { createOpportunity } from "@/features/opportunities/data";
 import { quickAddSchema } from "@/features/opportunities/schemas";
 import { completeOnboarding, updateRegionalPreferences } from "@/features/workspace/data";
-import { addDaysToDateOnly, todayInTimeZone, toDateOnly, utcToZonedParts, zonedToUtc } from "@/lib/dates";
+import {
+  addDaysToDateOnly,
+  parseDateOnly,
+  todayInTimeZone,
+  toDateOnly,
+  toDateOnlyOrNull,
+  utcToZonedParts,
+  zonedToUtc,
+} from "@/lib/dates";
 import { setStorageForTests } from "@/lib/integrations/storage";
 import { MAX_STORAGE_KEYS_PER_JOB } from "@/lib/jobs/types";
 import { deleteUserFilesTask } from "@/worker/tasks/delete-user-files";
@@ -56,6 +64,16 @@ vi.mock("@/lib/auth/session", async () => (await import("../support/session")).s
 const storage = createMemoryStorage();
 setStorageForTests(storage);
 afterAll(() => setStorageForTests(undefined));
+
+/** A migration's SQL statements, with comments removed (its SQL has no other semicolons). */
+function migrationStatements(name: string): string[] {
+  const sql = readFileSync(new URL(`../../prisma/migrations/${name}/migration.sql`, import.meta.url), "utf8");
+  return sql
+    .replace(/^--.*$/gm, "")
+    .split(";")
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+}
 
 const PDF = Buffer.from("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF");
 
@@ -530,74 +548,71 @@ describe("analytics and export", () => {
     await editAppliedOn("2026-10-05");
   });
 
-  it("reads responses written by the previous release and writes both columns for a rollback", async () => {
-    const { applicationId } = await setup(); // applied on 2026-10-01, Asia/Manila
-    // The previous release only wrote the noon instant.
-    await prisma.application.update({
-      where: { id: applicationId },
-      data: { firstResponseAt: zonedToUtc("2026-10-04", "12:00", "Asia/Manila"), firstResponseOn: null },
-    });
-    expect((await getApplicationDetail(applicationId))!.firstResponseOn).toBe("2026-10-04");
-    expect((await getAnalytics("2026-09-01", "2026-10-31", "week")).medianResponseDays).toBe(3);
-    await expect(
-      updateApplicationDetails(applicationDetailsSchema.parse({ applicationId, appliedOn: "2026-10-05" })),
-    ).rejects.toThrow(/after the employer's response \(Oct 4, 2026\)/);
+  it("contract migration rebuilds every response from its latest event, then drops the old column", async () => {
+    const { user, applicationId: corrected } = await setup(); // user now in Asia/Manila
+    const another = async (title: string) =>
+      (
+        await createOpportunity(
+          quickAddSchema.parse({ title, companyName: title, alreadyApplied: true, appliedOn: "2026-10-02" }),
+        )
+      ).applicationId!;
+    const oldColumnOnly = await another("Old column only");
+    const noResponse = await another("No response");
+    const laNoon = zonedToUtc("2026-10-05", "12:00", "America/Los_Angeles"); // reads as Oct 6 in Manila
+    const responseEvent = async (applicationId: string, respondedOn: string, createdAt: Date) => {
+      const { opportunityId } = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
+      await prisma.activityEvent.create({
+        data: {
+          userId: user.id,
+          opportunityId,
+          applicationId,
+          type: "EMPLOYER_RESPONSE_RECEIVED",
+          summary: "Employer responded",
+          details: { respondedOn },
+          occurredAt: createdAt,
+          createdAt,
+        },
+      });
+    };
+    const oldColumnExists = async () =>
+      (
+        await prisma.$queryRaw<{ count: number }[]>`
+          select count(*)::int as count from information_schema.columns
+          where table_name = 'applications' and column_name = 'first_response_at'`
+      )[0]!.count;
 
-    await recordEmployerResponse(applicationId, "2026-10-03");
-    const row = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
-    expect(toDateOnly(row.firstResponseOn!)).toBe("2026-10-03");
-    // What the previous release reads after a rollback.
-    expect(utcToZonedParts(row.firstResponseAt!, "Asia/Manila").date).toBe("2026-10-03");
-  });
-
-  it("backfills the originally entered response date, not the current timezone's reading", async () => {
-    const { user, applicationId } = await setup(); // user now in Asia/Manila
-    const { applicationId: withoutEvent } = await createOpportunity(
-      quickAddSchema.parse({
-        title: "Second",
-        companyName: "Two",
-        alreadyApplied: true,
-        appliedOn: "2026-10-02",
-      }),
+    // The expand-release state, rebuilt by hand: this database is already past the contract step.
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "applications" ADD COLUMN "first_response_at" timestamptz(3)`,
     );
-    // Pre-migration shape: entered as Oct 5 in Los Angeles, which reads as Oct 6 in Manila.
-    const laNoon = zonedToUtc("2026-10-05", "12:00", "America/Los_Angeles");
-    await prisma.application.updateMany({
-      where: { id: { in: [applicationId, withoutEvent!] } },
-      data: { firstResponseAt: laNoon, firstResponseOn: null },
-    });
-    const { opportunityId } = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
-    await prisma.activityEvent.create({
-      data: {
-        userId: user.id,
-        opportunityId,
-        applicationId,
-        type: "EMPLOYER_RESPONSE_RECEIVED",
-        summary: "Employer responded",
-        details: { respondedOn: "2026-10-05" },
-        occurredAt: laNoon,
-      },
-    });
+    try {
+      // Backfilled as Oct 4, then corrected to Oct 5 by the previous release during the deploy,
+      // which only updated the old column and added an event.
+      await prisma.application.update({
+        where: { id: corrected },
+        data: { firstResponseOn: parseDateOnly("2026-10-04") },
+      });
+      await prisma.$executeRaw`UPDATE "applications" SET "first_response_at" = ${laNoon} WHERE "id" = ${corrected}::uuid`;
+      await responseEvent(corrected, "2026-10-04", new Date("2026-10-10T00:00:00Z"));
+      await responseEvent(corrected, "2026-10-05", new Date("2026-10-11T00:00:00Z"));
+      // Only the old column and no event (e.g. demo seed data).
+      await prisma.$executeRaw`UPDATE "applications" SET "first_response_at" = ${laNoon} WHERE "id" = ${oldColumnOnly}::uuid`;
+      // A stray event never brings back a response the application doesn't have.
+      await responseEvent(noResponse, "2026-10-03", new Date("2026-10-10T00:00:00Z"));
 
-    const migration = readFileSync(
-      new URL(
-        "../../prisma/migrations/20261015014931_first_response_date_only/migration.sql",
-        import.meta.url,
-      ),
-      "utf8",
-    );
-    const backfill = migration
-      .replace(/^--.*$/gm, "")
-      .split(";")
-      .map((statement) => statement.trim())
-      .filter((statement) => statement.startsWith("UPDATE"));
-    expect(backfill).toHaveLength(3);
-    for (const statement of backfill) await prisma.$executeRawUnsafe(statement);
+      const statements = migrationStatements("20261015024025_drop_first_response_at");
+      expect(statements).toHaveLength(4);
+      for (const statement of statements) await prisma.$executeRawUnsafe(statement);
+      expect(await oldColumnExists()).toBe(0);
+    } finally {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "applications" DROP COLUMN IF EXISTS "first_response_at"`);
+    }
 
     const responseOn = async (id: string) =>
-      toDateOnly((await prisma.application.findUniqueOrThrow({ where: { id } })).firstResponseOn!);
-    expect(await responseOn(applicationId)).toBe("2026-10-05"); // the date the user entered
-    expect(await responseOn(withoutEvent!)).toBe("2026-10-06"); // no event: what it showed before
+      toDateOnlyOrNull((await prisma.application.findUniqueOrThrow({ where: { id } })).firstResponseOn);
+    expect(await responseOn(corrected)).toBe("2026-10-05"); // the latest entered date wins
+    expect(await responseOn(oldColumnOnly)).toBe("2026-10-06"); // no event: what it showed
+    expect(await responseOn(noResponse)).toBeNull();
   });
 
   it("shows the response event on its recorded date after a timezone change", async () => {

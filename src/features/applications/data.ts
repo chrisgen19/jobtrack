@@ -38,7 +38,6 @@ import {
   submitApplicationInTx,
   type WorkspaceContext,
 } from "./service";
-import { recordedResponseOn } from "./response-date";
 
 function contextOf({ user, preferences }: Workspace): WorkspaceContext {
   return {
@@ -71,7 +70,6 @@ async function loadOwnedApplication(userId: string, applicationId: string) {
       opportunityId: true,
       appliedOn: true,
       firstResponseOn: true,
-      firstResponseAt: true,
     },
   });
   if (!application) throw new NotFoundError("Application");
@@ -181,8 +179,7 @@ export async function recordEmployerResponse(applicationId: string, respondedOn:
   await prisma.$transaction(async (tx) => {
     await tx.application.update({
       where: { id: application.id },
-      // The old column too, so the previous release still shows it after a rollback.
-      data: { firstResponseOn: parseDateOnly(respondedOn), firstResponseAt: respondedAt },
+      data: { firstResponseOn: parseDateOnly(respondedOn) },
     });
     await recordActivity(tx, {
       userId: user.id,
@@ -200,7 +197,7 @@ export async function updateApplicationDetails(input: ApplicationDetailsInput): 
   const { user, preferences } = await requireWorkspace();
   const application = await loadOwnedApplication(user.id, input.applicationId);
   assertNotFutureApplicationDate(input.appliedOn, preferences.timezone);
-  const respondedOn = recordedResponseOn(application, preferences.timezone);
+  const respondedOn = toDateOnlyOrNull(application.firstResponseOn);
   if (respondedOn && input.appliedOn > respondedOn)
     throw new DomainError(
       `The application date can't be after the employer's response (${formatDateOnly(respondedOn)}).`,
@@ -313,7 +310,7 @@ export type ApplicationDetail = {
 const stageSelect = { id: true, name: true, category: true, color: true, isActive: true } as const;
 
 export async function getApplicationDetail(applicationId: string): Promise<ApplicationDetail | null> {
-  const { user, preferences } = await requireWorkspace();
+  const { user } = await requireWorkspace();
   const row = await prisma.application.findFirst({
     where: { id: applicationId, userId: user.id },
     select: {
@@ -327,7 +324,6 @@ export async function getApplicationDetail(applicationId: string): Promise<Appli
       closedAt: true,
       stageChangedAt: true,
       firstResponseOn: true,
-      firstResponseAt: true,
       notes: true,
       stage: { select: stageSelect },
       pipeline: { select: { stages: { orderBy: { position: "asc" }, select: stageSelect } } },
@@ -370,7 +366,7 @@ export async function getApplicationDetail(applicationId: string): Promise<Appli
     outcome: row.outcome,
     closedAt: row.closedAt,
     stageChangedAt: row.stageChangedAt,
-    firstResponseOn: recordedResponseOn(row, preferences.timezone),
+    firstResponseOn: toDateOnlyOrNull(row.firstResponseOn),
     notes: row.notes,
     stage: row.stage,
     stages: row.pipeline.stages,
