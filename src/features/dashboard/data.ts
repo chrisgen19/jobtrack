@@ -7,6 +7,7 @@ import type {
   StageCategory,
   TaskType,
 } from "@/generated/prisma/enums";
+import { activityDisplayDate } from "@/features/activity/display-date";
 import { requireWorkspace } from "@/features/workspace/data";
 import { addDaysToDateOnly, dayBoundsUtc, todayInTimeZone } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
@@ -56,6 +57,8 @@ export type ActivityItem = {
   type: ActivityType;
   summary: string;
   occurredAt: Date;
+  /** Date-only events (employer response): show this date, not the instant. */
+  displayDate: string | null;
   opportunityId: string;
   applicationId: string | null;
   company: string;
@@ -215,6 +218,7 @@ export async function getDashboard(at?: Date): Promise<DashboardData> {
         type: true,
         summary: true,
         occurredAt: true,
+        details: true,
         opportunityId: true,
         applicationId: true,
         opportunity: { select: { company: { select: { name: true } } } },
@@ -309,6 +313,7 @@ export async function getDashboard(at?: Date): Promise<DashboardData> {
       type: row.type,
       summary: row.summary,
       occurredAt: row.occurredAt,
+      displayDate: activityDisplayDate(row.type, row.details),
       opportunityId: row.opportunityId,
       applicationId: row.applicationId,
       company: row.opportunity.company.name,

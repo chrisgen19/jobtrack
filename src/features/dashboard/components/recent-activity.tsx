@@ -2,7 +2,7 @@ import { History } from "lucide-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Panel, PanelHeader } from "@/components/shared/panel";
-import { formatInTimeZone } from "@/lib/dates";
+import { formatDateOnly, formatInTimeZone } from "@/lib/dates";
 import type { ActivityItem } from "../data";
 
 export function RecentActivity({ items, timezone }: { items: ActivityItem[]; timezone: string }) {
@@ -35,7 +35,10 @@ export function RecentActivity({ items, timezone }: { items: ActivityItem[]; tim
                 <strong className="text-xs">{item.summary}</strong>
               </Link>
               <span className="mt-1 block text-[10px] text-[#9ba79d]">
-                {item.company} · {formatInTimeZone(item.occurredAt, timezone, "MMM d, h:mm a")}
+                {item.company} ·{" "}
+                {item.displayDate
+                  ? formatDateOnly(item.displayDate, "MMM d")
+                  : formatInTimeZone(item.occurredAt, timezone, "MMM d, h:mm a")}
               </span>
             </li>
           ))}

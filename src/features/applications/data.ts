@@ -11,6 +11,7 @@ import type {
   StageCategory,
   WorkArrangement,
 } from "@/generated/prisma/enums";
+import { activityDisplayDate } from "@/features/activity/display-date";
 import { recordActivity } from "@/features/activity/record";
 import {
   afterApplicationStatusChange,
@@ -37,6 +38,7 @@ import {
   submitApplicationInTx,
   type WorkspaceContext,
 } from "./service";
+import { recordedResponseOn } from "./response-date";
 
 function contextOf({ user, preferences }: Workspace): WorkspaceContext {
   return {
@@ -69,6 +71,7 @@ async function loadOwnedApplication(userId: string, applicationId: string) {
       opportunityId: true,
       appliedOn: true,
       firstResponseOn: true,
+      firstResponseAt: true,
     },
   });
   if (!application) throw new NotFoundError("Application");
@@ -178,7 +181,8 @@ export async function recordEmployerResponse(applicationId: string, respondedOn:
   await prisma.$transaction(async (tx) => {
     await tx.application.update({
       where: { id: application.id },
-      data: { firstResponseOn: parseDateOnly(respondedOn) },
+      // The old column too, so the previous release still shows it after a rollback.
+      data: { firstResponseOn: parseDateOnly(respondedOn), firstResponseAt: respondedAt },
     });
     await recordActivity(tx, {
       userId: user.id,
@@ -196,13 +200,11 @@ export async function updateApplicationDetails(input: ApplicationDetailsInput): 
   const { user, preferences } = await requireWorkspace();
   const application = await loadOwnedApplication(user.id, input.applicationId);
   assertNotFutureApplicationDate(input.appliedOn, preferences.timezone);
-  if (application.firstResponseOn) {
-    const respondedOn = toDateOnly(application.firstResponseOn);
-    if (input.appliedOn > respondedOn)
-      throw new DomainError(
-        `The application date can't be after the employer's response (${formatDateOnly(respondedOn)}).`,
-      );
-  }
+  const respondedOn = recordedResponseOn(application, preferences.timezone);
+  if (respondedOn && input.appliedOn > respondedOn)
+    throw new DomainError(
+      `The application date can't be after the employer's response (${formatDateOnly(respondedOn)}).`,
+    );
   await prisma.$transaction(async (tx) => {
     await tx.application.update({
       where: { id: application.id },
@@ -311,7 +313,7 @@ export type ApplicationDetail = {
 const stageSelect = { id: true, name: true, category: true, color: true, isActive: true } as const;
 
 export async function getApplicationDetail(applicationId: string): Promise<ApplicationDetail | null> {
-  const { user } = await requireWorkspace();
+  const { user, preferences } = await requireWorkspace();
   const row = await prisma.application.findFirst({
     where: { id: applicationId, userId: user.id },
     select: {
@@ -325,6 +327,7 @@ export async function getApplicationDetail(applicationId: string): Promise<Appli
       closedAt: true,
       stageChangedAt: true,
       firstResponseOn: true,
+      firstResponseAt: true,
       notes: true,
       stage: { select: stageSelect },
       pipeline: { select: { stages: { orderBy: { position: "asc" }, select: stageSelect } } },
@@ -367,7 +370,7 @@ export async function getApplicationDetail(applicationId: string): Promise<Appli
     outcome: row.outcome,
     closedAt: row.closedAt,
     stageChangedAt: row.stageChangedAt,
-    firstResponseOn: toDateOnlyOrNull(row.firstResponseOn),
+    firstResponseOn: recordedResponseOn(row, preferences.timezone),
     notes: row.notes,
     stage: row.stage,
     stages: row.pipeline.stages,
@@ -403,6 +406,8 @@ export type TimelineEvent = {
   type: ActivityType;
   summary: string;
   occurredAt: Date;
+  /** Date-only events (employer response): show this date, not the instant. */
+  displayDate: string | null;
   applicationId: string | null;
   attemptNumber: number | null;
 };
@@ -428,12 +433,14 @@ export async function listActivity(scope: {
       type: true,
       summary: true,
       occurredAt: true,
+      details: true,
       applicationId: true,
       application: { select: { attemptNumber: true } },
     },
   });
-  return rows.map(({ application, ...event }) => ({
+  return rows.map(({ application, details, ...event }) => ({
     ...event,
+    displayDate: activityDisplayDate(event.type, details),
     attemptNumber: application?.attemptNumber ?? null,
   }));
 }

@@ -51,7 +51,7 @@ sign out + password reset, mobile navigation).
 - [x] Duplicate warnings (same normalized posting URL, or same company + title) via an owner-scoped GET route; never blocks saving
 - [x] Applications: mark as applied (date, method, submitted via, starting stage), reapply with numbered attempts, history of every attempt
 - [x] Status vs outcome: pause/resume, close with an explicit outcome (no auto-rejection), reopen clears outcome; DB CHECK enforces it
-- [x] Employer response date (for response-time analytics) and timeline notes; stored date-only like the application date, so a timezone change never shifts it; the server keeps it between the application date and today, and rejects an application date after a recorded response or in the future
+- [x] Employer response date (for response-time analytics) and timeline notes; stored date-only like the application date, so a timezone change never shifts it (the timeline and recent activity show that date too); the server keeps it between the application date and today, and rejects an application date after a recorded response or in the future
 - [x] Custom pipeline stages (`/settings/pipeline`): add, rename, recolour, reorder, disable, delete with a required move target when in use (closed applications move too, with a logged stage change); category fixed for analytics
 - [x] Stage changes in a transaction with `STAGE_CHANGED` activity events storing name snapshots (renames never rewrite history)
 - [x] Suggested follow-up task after applying (editable/dismissible `SUGGESTED` task, never an outgoing email)
@@ -140,6 +140,7 @@ development outbox only. Verify both after adding credentials (see docs/DEPLOYME
 - [x] Error boundaries without internal details; Origin check on the upload POST; `Content-Length` required for uploads; existing-account sign-up notifies the owner instead of revealing the account
 - [x] CI workflow (`.github/workflows/ci.yml`): typecheck, lint, format, migration drift check, Vitest, build, Playwright, Docker builds
 - [x] Docs: `docs/DEPLOYMENT_COOLIFY.md`, `docs/BACKUP_AND_RECOVERY.md`, `docs/SECURITY.md`, README
+- [ ] Contract step for `applications.first_response_at` (expanded in PR #4): once a release with `first_response_on` is deployed everywhere, add a migration that fills any `first_response_on` still null from `first_response_at` (rows the previous release wrote during that deploy) and drops `first_response_at`; then remove the double write in `recordEmployerResponse`, the fallback in `src/features/applications/response-date.ts` and the deprecated `firstResponseAt` schema field
 
 Verification:
 
