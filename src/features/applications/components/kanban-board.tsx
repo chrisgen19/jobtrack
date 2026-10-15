@@ -20,7 +20,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { MoreHorizontal, Plus } from "lucide-react";
 import Link from "next/link";
-import { useOptimistic, useState, useTransition } from "react";
+import { useCallback, useOptimistic, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { PriorityBadge, StatusBadge } from "@/components/shared/badges";
 import { CompanyLogo } from "@/components/shared/company-logo";
@@ -288,10 +288,22 @@ function Column({ id, title, color, count, disabled, onAdd, children }: ColumnPr
 
 function DraggableCard({ id, data, children }: { id: string; data: DragData; children: React.ReactNode }) {
   const label = `${data.card.title} at ${data.card.company}`;
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id, data });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } = useDraggable({
+    id,
+    data,
+  });
+  // The card is also the activator, so Enter/Space only pick it up when the card itself has
+  // focus; from the title link inside, Enter follows the link instead of starting a drag.
+  const ref = useCallback(
+    (node: HTMLElement | null) => {
+      setNodeRef(node);
+      setActivatorNodeRef(node);
+    },
+    [setNodeRef, setActivatorNodeRef],
+  );
   return (
     <article
-      ref={setNodeRef}
+      ref={ref}
       style={{ transform: CSS.Translate.toString(transform) }}
       className={cn(
         "cursor-grab touch-none rounded-xl border border-[#e6ebe5] bg-white p-3.5 shadow-card hover:border-[#a1c8b1] hover:shadow-card-hover active:cursor-grabbing",
