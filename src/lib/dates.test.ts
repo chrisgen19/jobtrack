@@ -4,6 +4,7 @@ import {
   dayBoundsUtc,
   formatInTimeZone,
   parseDateOnly,
+  supportedTimeZones,
   todayInTimeZone,
   toDateOnly,
   utcToZonedParts,
@@ -59,5 +60,13 @@ describe("timezone conversion", () => {
 
   it("formats in the requested timezone", () => {
     expect(formatInTimeZone(new Date("2026-10-15T06:00:00Z"), "Asia/Manila", "h:mm a")).toBe("2:00 PM");
+  });
+
+  it("offers UTC as a timezone, which Intl's list leaves out", () => {
+    const zones = supportedTimeZones();
+    expect(zones).toContain("UTC");
+    expect(zones).toContain("Asia/Manila");
+    expect(new Set(zones).size).toBe(zones.length);
+    expect(zones).toEqual([...zones].sort());
   });
 });

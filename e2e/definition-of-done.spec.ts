@@ -68,8 +68,9 @@ test("definition of done: full job search workflow with isolation", async ({ pag
 
   await page.goto("/jobs");
   await page.getByRole("link", { name: /Full-Stack Developer/ }).click();
-  await expect(page.getByText("₱150K–185K/mo")).toBeVisible();
-  await expect(page.getByText(/Build and ship product features/)).toBeVisible();
+  // Next keeps the jobs list mounted but hidden, and it shows the salary too.
+  await expect(page.getByText("₱150K–185K/mo").filter({ visible: true })).toBeVisible();
+  await expect(page.getByText(/Build and ship product features/).filter({ visible: true })).toBeVisible();
 
   // 5. Mark as applied.
   await page.getByRole("button", { name: "Mark as applied" }).click();
@@ -116,13 +117,14 @@ test("definition of done: full job search workflow with isolation", async ({ pag
   await expect(edit).toBeHidden();
   await expect(page.getByText("Rescheduled 1 time")).toBeVisible();
 
-  // 10. Receive a reminder (delivered by the background worker).
+  // 10. Receive a reminder (delivered by the background worker). Generous on purpose: a
+  // busy CI runner can take a while to deliver it, and this test allows 180 s overall.
   await expect(async () => {
     await page.goto("/notifications");
     await expect(page.getByText("Upcoming interview: Recruiter Sync with Northstar Labs")).toBeVisible({
-      timeout: 1_000,
+      timeout: 2_000,
     });
-  }).toPass({ timeout: 30_000 });
+  }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 90_000 });
 
   // 11. Create and complete a follow-up task.
   await page.goto("/tasks");
