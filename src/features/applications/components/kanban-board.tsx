@@ -157,6 +157,8 @@ export function KanbanBoard({ saved, columns, options }: KanbanBoardProps) {
         press Space, arrow keys, then Space to drop. Every card also has a “Move to” menu.
       </p>
       <DndContext
+        // Stable id: dnd-kit's fallback is a module-level counter that differs between SSR and hydration.
+        id="pipeline-board"
         sensors={sensors}
         collisionDetection={collisionDetection}
         onDragStart={onDragStart}
