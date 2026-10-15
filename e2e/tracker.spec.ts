@@ -98,6 +98,12 @@ test.describe("core job tracker", () => {
     await expect(peek).toBeVisible();
     await expect(page).toHaveURL(/\/applications\//);
     await expect(peek.getByRole("link", { name: "Open full page" })).toBeVisible();
+    // The board stays the current section while the drawer masks the URL.
+    await expect(page.locator('nav[aria-label="Main"] a[aria-current="page"]')).toHaveAttribute(
+      "href",
+      "/pipeline",
+    );
+    await expect(page.locator('nav[aria-label="Breadcrumb"] strong')).toHaveText("Pipeline");
     await page.keyboard.press("Escape");
     await expect(peek).toBeHidden();
     await expect(page).toHaveURL(/\/pipeline$/);

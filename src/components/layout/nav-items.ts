@@ -33,6 +33,17 @@ export const NAV_ITEMS: NavItem[] = [
 /** Routes without their own nav entry, shown under a parent section. */
 const ALIASES: Record<string, string> = { "/applications": "/jobs", "/notifications": "/dashboard" };
 
+/**
+ * The path the nav treats as current. An intercepted route (the pipeline peek
+ * drawer) masks the URL as `/applications/[id]` while the board is still the
+ * page underneath; the workspace layout's selected segment names that page, so
+ * it wins when it disagrees with the URL's first segment.
+ */
+export function navPathname(pathname: string, selectedSegment: string | null): string {
+  if (!selectedSegment || selectedSegment.startsWith("(")) return pathname;
+  return pathname.split("/")[1] === selectedSegment ? pathname : `/${selectedSegment}`;
+}
+
 export function activeNavItem(pathname: string): NavItem | undefined {
   const alias = Object.entries(ALIASES).find(([prefix]) => pathname.startsWith(prefix))?.[1];
   const path = alias ?? pathname;

@@ -3,13 +3,13 @@
 import { ArrowRight, ChevronRight, Menu, Search, Sparkles } from "lucide-react";
 import Form from "next/form";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSelectedLayoutSegment } from "next/navigation";
 import { Suspense, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { Brand, BrandName } from "./brand";
-import { activeNavItem, NAV_ITEMS } from "./nav-items";
+import { activeNavItem, NAV_ITEMS, navPathname } from "./nav-items";
 
 interface AppShellProps {
   children: ReactNode;
@@ -87,13 +87,18 @@ export function AppShell({ children, navBadges, sidebarFooter, topbarActions }: 
   );
 }
 
+/** The page the nav highlights; reads the URL, so callers render behind Suspense. */
+function useNavPathname(): string {
+  return navPathname(usePathname(), useSelectedLayoutSegment());
+}
+
 /** Reads the URL, so it renders behind Suspense (dynamic routes stream it). */
 function CurrentSectionName() {
-  return <>{activeNavItem(usePathname())?.name ?? "Workspace"}</>;
+  return <>{activeNavItem(useNavPathname())?.name ?? "Workspace"}</>;
 }
 
 function ActiveNavLinks(props: Omit<NavLinksProps, "pathname">) {
-  return <NavLinks pathname={usePathname()} {...props} />;
+  return <NavLinks pathname={useNavPathname()} {...props} />;
 }
 
 interface SidebarContentProps {
