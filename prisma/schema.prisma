@@ -578,7 +578,13 @@ model Application {
   outcome         ApplicationOutcome?
   closedAt        DateTime?           @map("closed_at") @db.Timestamptz(3)
   stageChangedAt  DateTime            @default(now()) @map("stage_changed_at") @db.Timestamptz(3)
-  /// First genuine employer response, recorded by the user. Null = unknown.
+  /// Calendar date of the first genuine employer response, recorded by the
+  /// user. Date-only like applied_on, so a timezone change never shifts it.
+  /// Null = unknown.
+  firstResponseOn DateTime?           @map("first_response_on") @db.Date
+  /// Deprecated: the previous noon-instant form of firstResponseOn. Still
+  /// written for the release that introduced firstResponseOn (expand/contract);
+  /// drop in a later release.
   firstResponseAt DateTime?           @map("first_response_at") @db.Timestamptz(3)
   notes           String?
   createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)

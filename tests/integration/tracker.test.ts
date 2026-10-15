@@ -7,7 +7,9 @@ import {
   getBoard,
   listActivity,
   reopenApplication,
+  updateApplicationDetails,
 } from "@/features/applications/data";
+import { applicationDetailsSchema } from "@/features/applications/schemas";
 import {
   createOpportunity,
   deleteOpportunity,
@@ -18,6 +20,7 @@ import {
 import { quickAddSchema } from "@/features/opportunities/schemas";
 import { deleteStage, getPipelineStages, updateStage } from "@/features/pipelines/data";
 import { completeOnboarding } from "@/features/workspace/data";
+import { addDaysToDateOnly, todayInTimeZone, toDateOnly } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { createTestUser, resetDatabase } from "../support/db";
 import { signInAs } from "../support/session";
@@ -141,6 +144,32 @@ describe("opportunities and applications", () => {
       events.some((event) => event.type === "STAGE_CHANGED" && event.summary.includes("Recruiter Screening")),
     ).toBe(true);
     expect((await getPipelineStages()).map((stage) => stage.position)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("rejects future application dates on every path", async () => {
+    await onboardedUser();
+    const today = todayInTimeZone("Asia/Manila");
+    const tomorrow = addDaysToDateOnly(today, 1);
+
+    await expect(createOpportunity(job({ alreadyApplied: true, appliedOn: tomorrow }))).rejects.toThrow(
+      /can't be in the future/,
+    );
+    expect(await prisma.jobOpportunity.count()).toBe(0); // the job save rolled back too
+
+    const { id } = await createOpportunity(job({}));
+    await expect(applyToOpportunity({ opportunityId: id, appliedOn: tomorrow })).rejects.toThrow(
+      /can't be in the future/,
+    );
+    expect(await prisma.application.count()).toBe(0);
+
+    const applicationId = await applyToOpportunity({ opportunityId: id, appliedOn: today });
+    const edit = (appliedOn: string) =>
+      updateApplicationDetails(applicationDetailsSchema.parse({ applicationId, appliedOn }));
+    await expect(edit(tomorrow)).rejects.toThrow(/can't be in the future/);
+    await edit(addDaysToDateOnly(today, -1));
+    expect(
+      toDateOnly((await prisma.application.findUniqueOrThrow({ where: { id: applicationId } })).appliedOn),
+    ).toBe(addDaysToDateOnly(today, -1));
   });
 
   it("logs the move of a closed application when its stage is deleted, keeping it closed", async () => {

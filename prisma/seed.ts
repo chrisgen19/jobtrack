@@ -442,7 +442,7 @@ async function seedDemo(userId: string) {
             outcome: job.outcome ?? null,
             closedAt: job.outcome ? at(-2, "17:00") : null,
             stageChangedAt: at(-Math.max(1, Math.floor(job.appliedDaysAgo / 3)), "10:00"),
-            firstResponseAt: finalStage !== "applied" ? at(-job.appliedDaysAgo + 3, "11:00") : null,
+            firstResponseOn: finalStage !== "applied" ? parseDateOnly(day(-job.appliedDaysAgo + 3)) : null,
           },
         });
         applications[job.company] = application.id;

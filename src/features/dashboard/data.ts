@@ -7,6 +7,7 @@ import type {
   StageCategory,
   TaskType,
 } from "@/generated/prisma/enums";
+import { activityDisplayDate } from "@/features/activity/display-date";
 import { requireWorkspace } from "@/features/workspace/data";
 import { addDaysToDateOnly, dayBoundsUtc, todayInTimeZone } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
@@ -56,6 +57,8 @@ export type ActivityItem = {
   type: ActivityType;
   summary: string;
   occurredAt: Date;
+  /** Date-only events (employer response): show this date, not the instant. */
+  displayDate: string | null;
   opportunityId: string;
   applicationId: string | null;
   company: string;
@@ -171,7 +174,12 @@ export async function getDashboard(at?: Date): Promise<DashboardData> {
     prisma.task.count({ where: { userId, status: "SUGGESTED" } }),
     prisma.offer.findMany({
       where: { userId },
-      select: { applicationId: true, revisionNumber: true, status: true },
+      select: {
+        applicationId: true,
+        revisionNumber: true,
+        status: true,
+        application: { select: { status: true } },
+      },
       orderBy: { revisionNumber: "desc" },
     }),
     prisma.application.findMany({
@@ -210,6 +218,7 @@ export async function getDashboard(at?: Date): Promise<DashboardData> {
         type: true,
         summary: true,
         occurredAt: true,
+        details: true,
         opportunityId: true,
         applicationId: true,
         opportunity: { select: { company: { select: { name: true } } } },
@@ -226,14 +235,17 @@ export async function getDashboard(at?: Date): Promise<DashboardData> {
     else pipeline.applied += 1;
   }
 
-  // Latest revision per application decides whether an offer is pending.
+  // Latest revision per application decides whether an offer is pending; a
+  // closed application's offer no longer is, whatever its status.
   const latestOfferByApplication = new Map<string, (typeof offers)[number]>();
   for (const offer of offers) {
     if (!latestOfferByApplication.has(offer.applicationId))
       latestOfferByApplication.set(offer.applicationId, offer);
   }
   const pendingOffers = [...latestOfferByApplication.values()].filter(
-    (offer) => offer.status === "RECEIVED" || offer.status === "NEGOTIATING",
+    (offer) =>
+      (offer.status === "RECEIVED" || offer.status === "NEGOTIATING") &&
+      offer.application.status !== "CLOSED",
   ).length;
 
   const toInterview = (row: (typeof upcoming)[number]): DashboardInterview => ({
@@ -301,6 +313,7 @@ export async function getDashboard(at?: Date): Promise<DashboardData> {
       type: row.type,
       summary: row.summary,
       occurredAt: row.occurredAt,
+      displayDate: activityDisplayDate(row.type, row.details),
       opportunityId: row.opportunityId,
       applicationId: row.applicationId,
       company: row.opportunity.company.name,

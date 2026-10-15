@@ -6,6 +6,7 @@ import { changeStageInTx, suggestTask } from "@/features/applications/service";
 import { requireWorkspace } from "@/features/workspace/data";
 import { DomainError, NotFoundError } from "@/lib/action-result";
 import { addDaysToDateOnly, parseDateOnly, todayInTimeZone, toDateOnly, toDateOnlyOrNull } from "@/lib/dates";
+import { APPLICATION_OUTCOME_LABEL } from "@/lib/labels";
 import { decimalToString, formatMoney, PERIOD_SUFFIX } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import type { CreateOfferInput } from "./schemas";
@@ -132,7 +133,7 @@ export async function decideOffer(offerId: string, decision: "ACCEPTED" | "DECLI
         status: true,
         revisionNumber: true,
         positionTitle: true,
-        application: { select: { id: true, status: true, opportunityId: true } },
+        application: { select: { id: true, status: true, outcome: true, opportunityId: true } },
       },
     });
     if (!offer) throw new NotFoundError("Offer");
@@ -164,8 +165,8 @@ export async function decideOffer(offerId: string, decision: "ACCEPTED" | "DECLI
       details: { offerId: offer.id },
     });
 
+    const outcome = decision === "ACCEPTED" ? "ACCEPTED" : "OFFER_DECLINED";
     if (application.status !== "CLOSED") {
-      const outcome = decision === "ACCEPTED" ? "ACCEPTED" : "OFFER_DECLINED";
       await tx.application.update({
         where: { id: application.id },
         data: { status: "CLOSED", outcome, closedAt: new Date() },
@@ -175,10 +176,22 @@ export async function decideOffer(offerId: string, decision: "ACCEPTED" | "DECLI
         opportunityId: application.opportunityId,
         applicationId: application.id,
         type: "APPLICATION_CLOSED",
-        summary: decision === "ACCEPTED" ? "Closed: Accepted" : "Closed: Offer declined",
+        summary: `Closed: ${APPLICATION_OUTCOME_LABEL[outcome]}`,
         details: { outcome, offerId: offer.id },
       });
       await afterApplicationStatusChange(tx, user.id, application.id);
+    } else if (application.outcome !== outcome) {
+      // The decision is the newest information: it replaces a contradicting
+      // closed outcome (e.g. accepting an offer on an attempt closed as rejected).
+      await tx.application.update({ where: { id: application.id }, data: { outcome } });
+      await recordActivity(tx, {
+        userId: user.id,
+        opportunityId: application.opportunityId,
+        applicationId: application.id,
+        type: "APPLICATION_CLOSED",
+        summary: `Closed: ${APPLICATION_OUTCOME_LABEL[outcome]} (was ${APPLICATION_OUTCOME_LABEL[application.outcome!]})`,
+        details: { outcome, previousOutcome: application.outcome, offerId: offer.id },
+      });
     }
     await afterOfferChange(tx, user.id, offer.id);
   });
@@ -273,7 +286,8 @@ export type OfferDeadline = {
 /**
  * Decision deadlines of undecided offers within [from, to] (calendar). Only
  * the latest revision per application counts, like reminders and the
- * dashboard: earlier revisions keep their old status and deadline.
+ * dashboard: earlier revisions keep their old status and deadline. Offers
+ * of closed applications are no longer pending.
  */
 export async function listOfferDeadlines(from: string, to: string): Promise<OfferDeadline[]> {
   const { user } = await requireWorkspace();
@@ -282,6 +296,7 @@ export async function listOfferDeadlines(from: string, to: string): Promise<Offe
       userId: user.id,
       status: { in: ["RECEIVED", "NEGOTIATING"] },
       decisionDeadline: { gte: parseDateOnly(from), lte: parseDateOnly(to) },
+      application: { status: { not: "CLOSED" } },
     },
     select: {
       id: true,

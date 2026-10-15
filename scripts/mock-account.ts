@@ -1626,9 +1626,9 @@ async function main() {
               outcome: job.outcome ?? null,
               closedAt: job.status === "CLOSED" ? at(-closedDaysAgo, "17:00") : null,
               stageChangedAt: at(-(lastMove ?? job.appliedDaysAgo), "14:00"),
-              firstResponseAt:
+              firstResponseOn:
                 job.respondedAfter !== undefined
-                  ? zonedToUtc(day(-job.appliedDaysAgo + job.respondedAfter), "12:00", tz)
+                  ? parseDateOnly(day(-job.appliedDaysAgo + job.respondedAfter))
                   : null,
               notes: job.applicationNotes ?? null,
             },

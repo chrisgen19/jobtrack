@@ -37,6 +37,8 @@ interface OpportunityFormProps {
   onCancel?: () => void;
   /** Start with the advanced section open (full edit page). */
   expanded?: boolean;
+  /** Today in the user's timezone: the latest allowed application date. */
+  today?: string;
 }
 
 const PERIOD_OPTIONS = Object.entries(PERIOD_LABEL).map(([value, label]) => ({ value, label }));
@@ -55,6 +57,7 @@ export function OpportunityForm({
   onSubmit,
   onCancel,
   expanded = false,
+  today,
 }: OpportunityFormProps) {
   const [showMore, setShowMore] = useState(expanded);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -226,6 +229,7 @@ export function OpportunityForm({
                 <FormField id="appliedOn" label="Date applied" error={err("appliedOn")}>
                   <TextInput
                     type="date"
+                    max={today}
                     {...fieldAria("appliedOn", err("appliedOn"))}
                     {...form.register("appliedOn")}
                   />

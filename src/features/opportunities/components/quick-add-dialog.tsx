@@ -33,6 +33,7 @@ export function QuickAddDialog({ options, open, onOpenChange, stageId }: QuickAd
               mode="create"
               companyNames={options.companyNames}
               stages={options.stages}
+              today={options.today}
               defaultValues={{
                 currency: options.currency,
                 alreadyApplied: Boolean(stageId),

@@ -1,7 +1,9 @@
+import { readFileSync } from "node:fs";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { beforeAccountDelete } from "@/features/account/deletion";
 import { getAnalytics } from "@/features/analytics/data";
 import {
+  closeApplication,
   getApplicationDetail,
   listActivity,
   recordEmployerResponse,
@@ -16,6 +18,7 @@ import {
   updateContact,
 } from "@/features/contacts/data";
 import { contactSchema } from "@/features/contacts/schemas";
+import { getDashboard } from "@/features/dashboard/data";
 import {
   attachDocument,
   deleteDocument,
@@ -39,7 +42,7 @@ import { createOfferSchema } from "@/features/offers/schemas";
 import { createOpportunity } from "@/features/opportunities/data";
 import { quickAddSchema } from "@/features/opportunities/schemas";
 import { completeOnboarding, updateRegionalPreferences } from "@/features/workspace/data";
-import { addDaysToDateOnly, todayInTimeZone, toDateOnly } from "@/lib/dates";
+import { addDaysToDateOnly, todayInTimeZone, toDateOnly, utcToZonedParts, zonedToUtc } from "@/lib/dates";
 import { setStorageForTests } from "@/lib/integrations/storage";
 import { MAX_STORAGE_KEYS_PER_JOB } from "@/lib/jobs/types";
 import { deleteUserFilesTask } from "@/worker/tasks/delete-user-files";
@@ -344,6 +347,33 @@ describe("offers", () => {
     expect(events.map((event) => event.type)).not.toContain("OFFER_DECLINED");
   });
 
+  it("stops treating a closed application's offer as pending, and lets a decision replace the closed outcome", async () => {
+    const { user, applicationId } = await setup();
+    const today = todayInTimeZone("Asia/Manila");
+    const offerId = await createOffer(offer(applicationId, "100000", addDaysToDateOnly(today, 10)));
+    const deadlines = () => listOfferDeadlines(today, addDaysToDateOnly(today, 30));
+    const pendingReminders = () =>
+      prisma.reminder.count({ where: { userId: user.id, offerId, status: "PENDING" } });
+    expect((await getDashboard()).metrics.pendingOffers).toBe(1);
+    expect(await deadlines()).toHaveLength(1);
+    expect(await pendingReminders()).toBeGreaterThan(0);
+
+    // Closed while the offer is still open: no longer pending anywhere.
+    await closeApplication(applicationId, "REJECTED");
+    expect((await getDashboard()).metrics).toMatchObject({ pendingOffers: 0, applicationsWithOffers: 1 });
+    expect(await deadlines()).toHaveLength(0);
+    expect(await pendingReminders()).toBe(0);
+
+    // Accepting it afterwards replaces the contradicting outcome, and says so.
+    await decideOffer(offerId, "ACCEPTED");
+    expect(await prisma.application.findUniqueOrThrow({ where: { id: applicationId } })).toMatchObject({
+      status: "CLOSED",
+      outcome: "ACCEPTED",
+    });
+    const events = await listActivity({ applicationId });
+    expect(events.map((event) => event.summary)).toContain("Closed: Accepted (was Rejected)");
+  });
+
   it("shows only the latest revision's deadline on the calendar", async () => {
     const { applicationId } = await setup();
     const { applicationId: other } = await createOpportunity(
@@ -483,6 +513,115 @@ describe("analytics and export", () => {
     expect(report.medianResponseDays).toBe(4);
   });
 
+  it("keeps the recorded response date when the timezone changes", async () => {
+    const { applicationId } = await setup(); // applied on 2026-10-01
+    await updateRegionalPreferences({ timezone: "America/Los_Angeles", currency: "PHP", weekStartsOn: 1 });
+    await recordEmployerResponse(applicationId, "2026-10-05");
+    // Moving 15 hours east used to turn the stored noon-in-Los-Angeles instant into Oct 6.
+    await updateRegionalPreferences({ timezone: "Asia/Manila", currency: "PHP", weekStartsOn: 1 });
+
+    expect((await getApplicationDetail(applicationId))!.firstResponseOn).toBe("2026-10-05");
+    expect((await getAnalytics("2026-09-01", "2026-10-31", "week")).medianResponseDays).toBe(4);
+    const editAppliedOn = (appliedOn: string) =>
+      updateApplicationDetails(applicationDetailsSchema.parse({ applicationId, appliedOn }));
+    await expect(editAppliedOn("2026-10-06")).rejects.toThrow(
+      /after the employer's response \(Oct 5, 2026\)/,
+    );
+    await editAppliedOn("2026-10-05");
+  });
+
+  it("reads responses written by the previous release and writes both columns for a rollback", async () => {
+    const { applicationId } = await setup(); // applied on 2026-10-01, Asia/Manila
+    // The previous release only wrote the noon instant.
+    await prisma.application.update({
+      where: { id: applicationId },
+      data: { firstResponseAt: zonedToUtc("2026-10-04", "12:00", "Asia/Manila"), firstResponseOn: null },
+    });
+    expect((await getApplicationDetail(applicationId))!.firstResponseOn).toBe("2026-10-04");
+    expect((await getAnalytics("2026-09-01", "2026-10-31", "week")).medianResponseDays).toBe(3);
+    await expect(
+      updateApplicationDetails(applicationDetailsSchema.parse({ applicationId, appliedOn: "2026-10-05" })),
+    ).rejects.toThrow(/after the employer's response \(Oct 4, 2026\)/);
+
+    await recordEmployerResponse(applicationId, "2026-10-03");
+    const row = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
+    expect(toDateOnly(row.firstResponseOn!)).toBe("2026-10-03");
+    // What the previous release reads after a rollback.
+    expect(utcToZonedParts(row.firstResponseAt!, "Asia/Manila").date).toBe("2026-10-03");
+  });
+
+  it("backfills the originally entered response date, not the current timezone's reading", async () => {
+    const { user, applicationId } = await setup(); // user now in Asia/Manila
+    const { applicationId: withoutEvent } = await createOpportunity(
+      quickAddSchema.parse({
+        title: "Second",
+        companyName: "Two",
+        alreadyApplied: true,
+        appliedOn: "2026-10-02",
+      }),
+    );
+    // Pre-migration shape: entered as Oct 5 in Los Angeles, which reads as Oct 6 in Manila.
+    const laNoon = zonedToUtc("2026-10-05", "12:00", "America/Los_Angeles");
+    await prisma.application.updateMany({
+      where: { id: { in: [applicationId, withoutEvent!] } },
+      data: { firstResponseAt: laNoon, firstResponseOn: null },
+    });
+    const { opportunityId } = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
+    await prisma.activityEvent.create({
+      data: {
+        userId: user.id,
+        opportunityId,
+        applicationId,
+        type: "EMPLOYER_RESPONSE_RECEIVED",
+        summary: "Employer responded",
+        details: { respondedOn: "2026-10-05" },
+        occurredAt: laNoon,
+      },
+    });
+
+    const migration = readFileSync(
+      new URL(
+        "../../prisma/migrations/20261015014931_first_response_date_only/migration.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const backfill = migration
+      .replace(/^--.*$/gm, "")
+      .split(";")
+      .map((statement) => statement.trim())
+      .filter((statement) => statement.startsWith("UPDATE"));
+    expect(backfill).toHaveLength(3);
+    for (const statement of backfill) await prisma.$executeRawUnsafe(statement);
+
+    const responseOn = async (id: string) =>
+      toDateOnly((await prisma.application.findUniqueOrThrow({ where: { id } })).firstResponseOn!);
+    expect(await responseOn(applicationId)).toBe("2026-10-05"); // the date the user entered
+    expect(await responseOn(withoutEvent!)).toBe("2026-10-06"); // no event: what it showed before
+  });
+
+  it("shows the response event on its recorded date after a timezone change", async () => {
+    const { applicationId } = await setup();
+    await updateRegionalPreferences({ timezone: "America/Los_Angeles", currency: "PHP", weekStartsOn: 1 });
+    await recordEmployerResponse(applicationId, "2026-10-05");
+    await updateRegionalPreferences({ timezone: "Asia/Manila", currency: "PHP", weekStartsOn: 1 });
+
+    const event = (await listActivity({ applicationId })).find(
+      (item) => item.type === "EMPLOYER_RESPONSE_RECEIVED",
+    )!;
+    // The stored instant now falls on Oct 6 in Manila, so lists must show the recorded date instead.
+    expect(utcToZonedParts(event.occurredAt, "Asia/Manila").date).toBe("2026-10-06");
+    expect(event.displayDate).toBe("2026-10-05");
+    const recent = (await getDashboard()).recentActivity.find(
+      (item) => item.type === "EMPLOYER_RESPONSE_RECEIVED",
+    )!;
+    expect(recent.displayDate).toBe("2026-10-05");
+    expect(
+      (await listActivity({ applicationId })).find((item) => item.type === "APPLICATION_SUBMITTED")!
+        .displayDate,
+    ).toBeNull();
+  });
+
   it("keeps the response date between the application date and today", async () => {
     const { applicationId } = await setup(); // applied on 2026-10-01
     const tomorrow = addDaysToDateOnly(todayInTimeZone("Asia/Manila"), 1);
@@ -491,7 +630,7 @@ describe("analytics and export", () => {
     );
     await expect(recordEmployerResponse(applicationId, tomorrow)).rejects.toThrow(/can't be in the future/);
     expect(
-      (await prisma.application.findUniqueOrThrow({ where: { id: applicationId } })).firstResponseAt,
+      (await prisma.application.findUniqueOrThrow({ where: { id: applicationId } })).firstResponseOn,
     ).toBeNull();
 
     await recordEmployerResponse(applicationId, "2026-10-05");

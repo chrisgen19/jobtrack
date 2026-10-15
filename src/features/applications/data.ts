@@ -11,6 +11,7 @@ import type {
   StageCategory,
   WorkArrangement,
 } from "@/generated/prisma/enums";
+import { activityDisplayDate } from "@/features/activity/display-date";
 import { recordActivity } from "@/features/activity/record";
 import {
   afterApplicationStatusChange,
@@ -25,14 +26,19 @@ import {
   todayInTimeZone,
   toDateOnly,
   toDateOnlyOrNull,
-  utcToZonedParts,
   zonedToUtc,
 } from "@/lib/dates";
 import { APPLICATION_OUTCOME_LABEL } from "@/lib/labels";
 import { decimalToString } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import type { ApplicationDetailsInput, ApplyInput } from "./schemas";
-import { changeStageInTx, submitApplicationInTx, type WorkspaceContext } from "./service";
+import {
+  assertNotFutureApplicationDate,
+  changeStageInTx,
+  submitApplicationInTx,
+  type WorkspaceContext,
+} from "./service";
+import { recordedResponseOn } from "./response-date";
 
 function contextOf({ user, preferences }: Workspace): WorkspaceContext {
   return {
@@ -64,6 +70,7 @@ async function loadOwnedApplication(userId: string, applicationId: string) {
       outcome: true,
       opportunityId: true,
       appliedOn: true,
+      firstResponseOn: true,
       firstResponseAt: true,
     },
   });
@@ -169,9 +176,14 @@ export async function recordEmployerResponse(applicationId: string, respondedOn:
     );
   if (respondedOn > todayInTimeZone(preferences.timezone))
     throw new DomainError("The response date can't be in the future.");
+  // The timeline needs an instant: noon local keeps it on the chosen day.
   const respondedAt = zonedToUtc(respondedOn, "12:00", preferences.timezone);
   await prisma.$transaction(async (tx) => {
-    await tx.application.update({ where: { id: application.id }, data: { firstResponseAt: respondedAt } });
+    await tx.application.update({
+      where: { id: application.id },
+      // The old column too, so the previous release still shows it after a rollback.
+      data: { firstResponseOn: parseDateOnly(respondedOn), firstResponseAt: respondedAt },
+    });
     await recordActivity(tx, {
       userId: user.id,
       opportunityId: application.opportunityId,
@@ -187,14 +199,12 @@ export async function recordEmployerResponse(applicationId: string, respondedOn:
 export async function updateApplicationDetails(input: ApplicationDetailsInput): Promise<void> {
   const { user, preferences } = await requireWorkspace();
   const application = await loadOwnedApplication(user.id, input.applicationId);
-  if (application.firstResponseAt) {
-    // Same calendar date analytics derives from the stored response instant.
-    const respondedOn = utcToZonedParts(application.firstResponseAt, preferences.timezone).date;
-    if (input.appliedOn > respondedOn)
-      throw new DomainError(
-        `The application date can't be after the employer's response (${formatDateOnly(respondedOn)}).`,
-      );
-  }
+  assertNotFutureApplicationDate(input.appliedOn, preferences.timezone);
+  const respondedOn = recordedResponseOn(application, preferences.timezone);
+  if (respondedOn && input.appliedOn > respondedOn)
+    throw new DomainError(
+      `The application date can't be after the employer's response (${formatDateOnly(respondedOn)}).`,
+    );
   await prisma.$transaction(async (tx) => {
     await tx.application.update({
       where: { id: application.id },
@@ -267,7 +277,7 @@ export type ApplicationDetail = {
   outcome: ApplicationOutcome | null;
   closedAt: Date | null;
   stageChangedAt: Date;
-  firstResponseAt: Date | null;
+  firstResponseOn: string | null;
   notes: string | null;
   stage: StageOption;
   stages: StageOption[];
@@ -303,7 +313,7 @@ export type ApplicationDetail = {
 const stageSelect = { id: true, name: true, category: true, color: true, isActive: true } as const;
 
 export async function getApplicationDetail(applicationId: string): Promise<ApplicationDetail | null> {
-  const { user } = await requireWorkspace();
+  const { user, preferences } = await requireWorkspace();
   const row = await prisma.application.findFirst({
     where: { id: applicationId, userId: user.id },
     select: {
@@ -316,6 +326,7 @@ export async function getApplicationDetail(applicationId: string): Promise<Appli
       outcome: true,
       closedAt: true,
       stageChangedAt: true,
+      firstResponseOn: true,
       firstResponseAt: true,
       notes: true,
       stage: { select: stageSelect },
@@ -359,7 +370,7 @@ export async function getApplicationDetail(applicationId: string): Promise<Appli
     outcome: row.outcome,
     closedAt: row.closedAt,
     stageChangedAt: row.stageChangedAt,
-    firstResponseAt: row.firstResponseAt,
+    firstResponseOn: recordedResponseOn(row, preferences.timezone),
     notes: row.notes,
     stage: row.stage,
     stages: row.pipeline.stages,
@@ -395,6 +406,8 @@ export type TimelineEvent = {
   type: ActivityType;
   summary: string;
   occurredAt: Date;
+  /** Date-only events (employer response): show this date, not the instant. */
+  displayDate: string | null;
   applicationId: string | null;
   attemptNumber: number | null;
 };
@@ -420,12 +433,14 @@ export async function listActivity(scope: {
       type: true,
       summary: true,
       occurredAt: true,
+      details: true,
       applicationId: true,
       application: { select: { attemptNumber: true } },
     },
   });
-  return rows.map(({ application, ...event }) => ({
+  return rows.map(({ application, details, ...event }) => ({
     ...event,
+    displayDate: activityDisplayDate(event.type, details),
     attemptNumber: application?.attemptNumber ?? null,
   }));
 }

@@ -1,7 +1,7 @@
 import { History } from "lucide-react";
 import type { ActivityType } from "@/generated/prisma/enums";
 import { EmptyState } from "@/components/shared/empty-state";
-import { formatInTimeZone } from "@/lib/dates";
+import { formatDateOnly, formatInTimeZone } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 
 export type TimelineItem = {
@@ -9,6 +9,8 @@ export type TimelineItem = {
   type: ActivityType;
   summary: string;
   occurredAt: Date;
+  /** Date-only events (employer response): shown as this date, without a time. */
+  displayDate?: string | null;
   attemptNumber?: number | null;
 };
 
@@ -57,7 +59,9 @@ export function ActivityTimeline({
           />
           <strong className="text-xs">{event.summary}</strong>
           <span className="mt-1 block text-[10px] text-[#9ba79d]">
-            {formatInTimeZone(event.occurredAt, timezone, "MMM d, yyyy · h:mm a")}
+            {event.displayDate
+              ? formatDateOnly(event.displayDate)
+              : formatInTimeZone(event.occurredAt, timezone, "MMM d, yyyy · h:mm a")}
             {showAttempt && event.attemptNumber ? ` · Attempt ${event.attemptNumber}` : ""}
           </span>
         </li>
