@@ -140,7 +140,7 @@ development outbox only. Verify both after adding credentials (see docs/DEPLOYME
 - [x] Error boundaries without internal details; Origin check on the upload POST; `Content-Length` required for uploads; existing-account sign-up notifies the owner instead of revealing the account
 - [x] CI workflow (`.github/workflows/ci.yml`): typecheck, lint, format, migration drift check, Vitest, build, Playwright, Docker builds
 - [x] Docs: `docs/DEPLOYMENT_COOLIFY.md`, `docs/BACKUP_AND_RECOVERY.md`, `docs/SECURITY.md`, README
-- [ ] Contract step for `applications.first_response_at` (expanded in PR #4): once a release with `first_response_on` is deployed everywhere, add a migration that fills any `first_response_on` still null from `first_response_at` (rows the previous release wrote during that deploy) and drops `first_response_at`; then remove the double write in `recordEmployerResponse`, the fallback in `src/features/applications/response-date.ts` and the deprecated `firstResponseAt` schema field
+- [ ] Contract step for `applications.first_response_at` (expanded in PR #4): once a release with `first_response_on` is deployed everywhere, add a migration that rebuilds `first_response_on` for every row from its latest `EMPLOYER_RESPONSE_RECEIVED` event's `details.respondedOn` (both releases save it there, so this also picks up responses the previous release recorded or corrected during that deploy, which only touched `first_response_at`), fills the rows still null from `first_response_at` in the user's timezone, and drops `first_response_at`; then remove the double write in `recordEmployerResponse`, the fallback in `src/features/applications/response-date.ts` and the deprecated `firstResponseAt` schema field
 
 Verification:
 
