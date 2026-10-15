@@ -15,6 +15,21 @@ function browserTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
+/** What the server renders: it can't know the browser's timezone. */
+const SERVER_TIMEZONE = "UTC";
+
+/**
+ * A timezone picked before hydration. The select is server-rendered, so on a slow connection
+ * a visitor can change it before React loads; the client's first render (hydration) reads it
+ * from the page so it isn't reset. The server, and a form rendered after navigation, get null.
+ */
+function timezonePickedBeforeHydration(): string | null {
+  if (typeof document === "undefined") return null;
+  const rendered = document.getElementById("timezone");
+  if (!(rendered instanceof HTMLSelectElement)) return null;
+  return rendered.value && rendered.value !== SERVER_TIMEZONE ? rendered.value : null;
+}
+
 interface OnboardingFormProps {
   timeZones: string[];
   currencies: string[];
@@ -22,10 +37,10 @@ interface OnboardingFormProps {
 
 export function OnboardingForm({ timeZones, currencies }: OnboardingFormProps) {
   const [state, formAction, pending] = useActionState(completeOnboardingAction, null);
-  const [chosenTimezone, setChosenTimezone] = useState<string | null>(null);
+  const [chosenTimezone, setChosenTimezone] = useState<string | null>(timezonePickedBeforeHydration);
   // The browser's timezone is the default; the server render uses UTC.
   const detected = useSyncExternalStore(subscribeNoop, browserTimeZone, () => null);
-  const timezone = chosenTimezone ?? (detected && timeZones.includes(detected) ? detected : "UTC");
+  const timezone = chosenTimezone ?? (detected && timeZones.includes(detected) ? detected : SERVER_TIMEZONE);
 
   const fieldErrors = state?.ok === false ? state.fieldErrors : undefined;
   const otherCurrencies = currencies.filter((code) => !COMMON_CURRENCIES.includes(code));
