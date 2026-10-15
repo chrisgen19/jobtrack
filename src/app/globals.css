@@ -1,0 +1,139 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * JobTrack design tokens, taken from references/job-tracker-demo.html:
+ * warm off-white canvas, deep green brand, soft green surfaces, 17px panels.
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.7);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* JobTrack palette */
+  --color-ink: #172b26;
+  --color-heading: #173329;
+  --color-subtle: #8a9890;
+  --color-faint: #9aa69e;
+  --color-line: #e7ece7;
+  --color-line-soft: #f0f3ef;
+  --color-canvas: #f7f8f5;
+  --color-surface-2: #f9faf8;
+  --color-brand: #126d50;
+  --color-brand-dark: #0d533d;
+  --color-brand-soft: #edf6f0;
+  --color-brand-tint: #eaf3ed;
+  --color-danger: #c44d4d;
+  --color-warning: #9c6d26;
+
+  /* Metric icon tones */
+  --color-tone-green-bg: #f0f5f0;
+  --color-tone-green: #126d50;
+  --color-tone-purple-bg: #f2effa;
+  --color-tone-purple: #8770b2;
+  --color-tone-orange-bg: #fff5e9;
+  --color-tone-orange: #bd8756;
+  --color-tone-blue-bg: #ecf3fb;
+  --color-tone-blue: #6184b4;
+
+  --shadow-panel: 0 8px 28px rgba(28, 47, 38, 0.035);
+  --shadow-card: 0 2px 4px #12342108;
+  --shadow-card-hover: 0 5px 18px #12342110;
+}
+
+:root {
+  --background: #f7f8f5;
+  --foreground: #172b26;
+  --card: #ffffff;
+  --card-foreground: #172b26;
+  --popover: #ffffff;
+  --popover-foreground: #172b26;
+  --primary: #126d50;
+  --primary-foreground: #ffffff;
+  --secondary: #f0f4ef;
+  --secondary-foreground: #314b3c;
+  --muted: #f0f4ef;
+  --muted-foreground: #75837f;
+  --accent: #eaf3ed;
+  --accent-foreground: #126d50;
+  --destructive: #c44d4d;
+  --border: #e7ece7;
+  --input: #dfe7df;
+  --ring: #9dd8bd;
+  --chart-1: #1d7657;
+  --chart-2: #8c96c8;
+  --chart-3: #5bafa0;
+  --chart-4: #d0a16d;
+  --chart-5: #a884bc;
+  --radius: 0.625rem;
+  --sidebar: #fcfdfb;
+  --sidebar-foreground: #687772;
+  --sidebar-primary: #126d50;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eaf3ed;
+  --sidebar-accent-foreground: #126d50;
+  --sidebar-border: #e7ece7;
+  --sidebar-ring: #9dd8bd;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    font-synthesis: none;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 3px solid #9dd8bd;
+    outline-offset: 2px;
+  }
+}

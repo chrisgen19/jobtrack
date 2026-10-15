@@ -1,0 +1,979 @@
+// JobTrack database schema (PostgreSQL, Prisma ORM 7).
+//
+// Conventions
+// - Better Auth models (User, Session, Account, Verification, RateLimit) use
+//   Better Auth's text IDs. Every private domain table carries `userId`.
+// - Domain IDs are UUIDv7 (`@db.Uuid`).
+// - Tenancy: child rows reference parents through composite foreign keys on
+//   (user_id, id), so the database itself rejects a row that links user A's
+//   record to user B's parent. The referenced tables expose @@unique([userId, id]).
+// - `NoAction` (checked at end of statement) is used instead of `Restrict`
+//   where a delete must be blocked, so cascading account deletion still works.
+// - Instants are TIMESTAMPTZ; calendar dates (applied on, deadlines) are DATE.
+// - Money is NUMERIC(14,2) with an ISO 4217 currency and a pay period.
+// - CHECK constraints live in the migration SQL (Prisma does not model them).
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// Stable analytics meaning of a user-defined stage. Renaming a stage never
+/// changes its category.
+enum StageCategory {
+  APPLIED
+  SCREENING
+  ASSESSMENT
+  INTERVIEW
+  OFFER
+  OTHER
+}
+
+enum ApplicationStatus {
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+/// Final result of an application attempt. Only set when status = CLOSED.
+enum ApplicationOutcome {
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  OFFER_DECLINED
+  NO_RESPONSE
+  ROLE_CANCELLED
+}
+
+enum ApplicationMethod {
+  COMPANY_WEBSITE
+  JOB_BOARD
+  LINKEDIN_EASY_APPLY
+  EMAIL
+  REFERRAL
+  RECRUITER
+  OTHER
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  FREELANCE
+  INTERNSHIP
+  TEMPORARY
+  OTHER
+}
+
+enum WorkArrangement {
+  REMOTE
+  HYBRID
+  ONSITE
+}
+
+enum SalaryPeriod {
+  HOURLY
+  DAILY
+  WEEKLY
+  MONTHLY
+  ANNUALLY
+}
+
+enum SalaryBasis {
+  GROSS
+  NET
+  UNKNOWN
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum InterviewType {
+  RECRUITER_SCREEN
+  PHONE_SCREEN
+  TECHNICAL
+  CODING_CHALLENGE
+  ASSESSMENT
+  SYSTEM_DESIGN
+  BEHAVIORAL
+  HIRING_MANAGER
+  PANEL
+  CLIENT
+  FINAL
+  OTHER
+}
+
+enum InterviewMode {
+  VIDEO
+  PHONE
+  ONSITE
+  TAKE_HOME
+  OTHER
+}
+
+/// Scheduling state. Independent from the interview result.
+enum InterviewStatus {
+  UNSCHEDULED
+  SCHEDULED
+  RESCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+/// Outcome of a single interview round. Independent from scheduling state
+/// and from the application's final outcome.
+enum InterviewResult {
+  PENDING
+  AWAITING_FEEDBACK
+  PASSED
+  FAILED
+}
+
+enum TaskType {
+  FOLLOW_UP
+  RECRUITER_FOLLOW_UP
+  INTERVIEW_PREP
+  RESUME_UPDATE
+  ASSESSMENT
+  OFFER_DECISION
+  APPLICATION
+  OTHER
+}
+
+/// SUGGESTED tasks are system proposals the user can edit, accept or dismiss.
+enum TaskStatus {
+  SUGGESTED
+  OPEN
+  COMPLETED
+  DISMISSED
+}
+
+enum ContactKind {
+  RECRUITER
+  HIRING_MANAGER
+  INTERVIEWER
+  REFERRER
+  OTHER
+}
+
+enum DocumentKind {
+  RESUME
+  COVER_LETTER
+  PORTFOLIO
+  CERTIFICATE
+  OTHER
+}
+
+enum DocumentStatus {
+  UPLOADING
+  READY
+  BLOCKED
+}
+
+enum OfferStatus {
+  RECEIVED
+  NEGOTIATING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  RESCINDED
+}
+
+enum ActivityType {
+  OPPORTUNITY_SAVED
+  OPPORTUNITY_UPDATED
+  OPPORTUNITY_ARCHIVED
+  OPPORTUNITY_RESTORED
+  APPLICATION_SUBMITTED
+  APPLICATION_UPDATED
+  STAGE_CHANGED
+  APPLICATION_PAUSED
+  APPLICATION_RESUMED
+  APPLICATION_CLOSED
+  APPLICATION_REOPENED
+  EMPLOYER_RESPONSE_RECEIVED
+  INTERVIEW_SCHEDULED
+  INTERVIEW_RESCHEDULED
+  INTERVIEW_UPDATED
+  INTERVIEW_COMPLETED
+  INTERVIEW_CANCELLED
+  INTERVIEW_RESULT_RECORDED
+  TASK_COMPLETED
+  OFFER_RECEIVED
+  OFFER_REVISED
+  OFFER_ACCEPTED
+  OFFER_DECLINED
+  DOCUMENT_ATTACHED
+  DOCUMENT_DETACHED
+  NOTE_ADDED
+}
+
+enum ReminderChannel {
+  IN_APP
+  EMAIL
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  CANCELLED
+  SKIPPED
+  FAILED
+}
+
+enum DeliveryStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum NotificationType {
+  INTERVIEW_REMINDER
+  TASK_REMINDER
+  OFFER_DEADLINE
+  CALENDAR_SYNC_ERROR
+  SYSTEM
+}
+
+enum CalendarProvider {
+  GOOGLE
+}
+
+enum CalendarConnectionStatus {
+  CONNECTED
+  NEEDS_REAUTH
+  ERROR
+}
+
+enum CalendarSyncStatus {
+  PENDING
+  SYNCED
+  DELETE_PENDING
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// Better Auth models
+// Generated with `pnpm auth:generate` (Better Auth CLI 1.7.7, see
+// scripts/auth-schema.config.ts) and pasted verbatim. Only the domain
+// back-relations on User were added by hand.
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id
+  name          String
+  email         String
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+
+  // JobTrack domain relations (added by hand; Better Auth ignores them).
+  preferences          UserPreferences?
+  companies            Company[]
+  contacts             Contact[]
+  jobTags              JobTag[]
+  opportunityTags      OpportunityTag[]
+  opportunities        JobOpportunity[]
+  pipelines            Pipeline[]
+  pipelineStages       PipelineStage[]
+  applications         Application[]
+  activityEvents       ActivityEvent[]
+  interviews           Interview[]
+  interviewReschedules InterviewReschedule[]
+  interviewContacts    InterviewContact[]
+  tasks                Task[]
+  documents            Document[]
+  applicationDocuments ApplicationDocument[]
+  offers               Offer[]
+  reminders            Reminder[]
+  notifications        Notification[]
+  deliveries           NotificationDelivery[]
+  calendarConnections  CalendarConnection[]
+  calendarEventSyncs   CalendarEventSync[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model RateLimit {
+  id          String @id
+  key         String
+  count       Int
+  lastRequest BigInt
+
+  @@unique([key])
+  @@map("rateLimit")
+}
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
+model UserPreferences {
+  userId                   String    @id @map("user_id")
+  /// IANA timezone name, e.g. "Asia/Manila".
+  timezone                 String    @default("UTC")
+  /// ISO 4217 code used as the default for new salaries and offers.
+  currency                 String    @default("USD") @db.Char(3)
+  weekStartsOn             Int       @default(0) @map("week_starts_on")
+  inAppReminders           Boolean   @default(true) @map("in_app_reminders")
+  /// Off until the user explicitly opts in (and has a verified email).
+  emailReminders           Boolean   @default(false) @map("email_reminders")
+  interviewReminderMinutes Int       @default(1440) @map("interview_reminder_minutes")
+  taskReminderMinutes      Int       @default(60) @map("task_reminder_minutes")
+  offerDeadlineReminders   Boolean   @default(true) @map("offer_deadline_reminders")
+  suggestFollowUps         Boolean   @default(true) @map("suggest_follow_ups")
+  followUpDays             Int       @default(7) @map("follow_up_days")
+  calendarSyncTasks        Boolean   @default(false) @map("calendar_sync_tasks")
+  onboardedAt              DateTime? @map("onboarded_at") @db.Timestamptz(3)
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+// ---------------------------------------------------------------------------
+// Companies, contacts and tags
+// ---------------------------------------------------------------------------
+
+model Company {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  userId         String   @map("user_id")
+  name           String
+  /// Lowercased, whitespace-collapsed name for find-or-create.
+  normalizedName String   @map("normalized_name")
+  website        String?
+  location       String?
+  industry       String?
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunities JobOpportunity[]
+  contacts      Contact[]
+
+  @@unique([userId, id])
+  @@unique([userId, normalizedName])
+  @@map("companies")
+}
+
+model Contact {
+  id          String      @id @default(uuid(7)) @db.Uuid
+  userId      String      @map("user_id")
+  companyId   String      @map("company_id") @db.Uuid
+  name        String
+  title       String?
+  kind        ContactKind @default(RECRUITER)
+  email       String?
+  phone       String?
+  linkedinUrl String?     @map("linkedin_url")
+  notes       String?
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company    Company            @relation(fields: [userId, companyId], references: [userId, id], onDelete: Cascade)
+  interviews InterviewContact[]
+
+  @@unique([userId, id])
+  @@index([userId, companyId])
+  @@map("contacts")
+}
+
+model JobTag {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @map("user_id")
+  name      String
+  color     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunities OpportunityTag[]
+
+  @@unique([userId, id])
+  @@unique([userId, name])
+  @@map("job_tags")
+}
+
+model OpportunityTag {
+  userId        String @map("user_id")
+  opportunityId String @map("opportunity_id") @db.Uuid
+  tagId         String @map("tag_id") @db.Uuid
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity JobOpportunity @relation(fields: [userId, opportunityId], references: [userId, id], onDelete: Cascade)
+  tag         JobTag         @relation(fields: [userId, tagId], references: [userId, id], onDelete: Cascade)
+
+  @@id([userId, opportunityId, tagId])
+  @@index([userId, tagId])
+  @@map("opportunity_tags")
+}
+
+// ---------------------------------------------------------------------------
+// Opportunities, pipelines and applications
+// ---------------------------------------------------------------------------
+
+model JobOpportunity {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  userId          String           @map("user_id")
+  companyId       String           @map("company_id") @db.Uuid
+  title           String
+  description     String?
+  postingUrl      String?          @map("posting_url")
+  /// Host + path without query/fragment, lowercased. Used for duplicate hints.
+  normalizedUrl   String?          @map("normalized_url")
+  source          String?
+  referenceCode   String?          @map("reference_code")
+  salaryMin       Decimal?         @map("salary_min") @db.Decimal(14, 2)
+  salaryMax       Decimal?         @map("salary_max") @db.Decimal(14, 2)
+  currency        String?          @db.Char(3)
+  salaryPeriod    SalaryPeriod?    @map("salary_period")
+  salaryBasis     SalaryBasis      @default(UNKNOWN) @map("salary_basis")
+  employmentType  EmploymentType?  @map("employment_type")
+  workArrangement WorkArrangement? @map("work_arrangement")
+  location        String?
+  requiredSkills  String[]         @default([]) @map("required_skills")
+  priority        Priority         @default(MEDIUM)
+  notes           String?
+  deadline        DateTime?        @db.Date
+  savedOn         DateTime         @default(dbgenerated("CURRENT_DATE")) @map("saved_on") @db.Date
+  archivedAt      DateTime?        @map("archived_at") @db.Timestamptz(3)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company      Company          @relation(fields: [userId, companyId], references: [userId, id], onDelete: NoAction)
+  applications Application[]
+  activities   ActivityEvent[]
+  tasks        Task[]
+  tags         OpportunityTag[]
+
+  @@unique([userId, id])
+  @@index([userId, archivedAt, createdAt])
+  @@index([userId, companyId])
+  @@index([userId, normalizedUrl])
+  @@map("job_opportunities")
+}
+
+model Pipeline {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @map("user_id")
+  name      String
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stages       PipelineStage[]
+  applications Application[]
+
+  @@unique([userId, id])
+  /// At most one default pipeline per user.
+  @@unique([userId], map: "pipelines_one_default_per_user", where: { isDefault: true })
+  @@map("pipelines")
+}
+
+model PipelineStage {
+  id         String        @id @default(uuid(7)) @db.Uuid
+  userId     String        @map("user_id")
+  pipelineId String        @map("pipeline_id") @db.Uuid
+  name       String
+  category   StageCategory
+  position   Int
+  color      String?
+  /// Disabled stages are hidden from pickers but keep their history.
+  isActive   Boolean       @default(true) @map("is_active")
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pipeline     Pipeline      @relation(fields: [userId, pipelineId], references: [userId, id], onDelete: Cascade)
+  applications Application[]
+
+  @@unique([userId, id])
+  @@unique([userId, pipelineId, id])
+  @@index([pipelineId, position])
+  @@map("pipeline_stages")
+}
+
+/// One application attempt for an opportunity. Reapplying creates a new row.
+model Application {
+  id              String              @id @default(uuid(7)) @db.Uuid
+  userId          String              @map("user_id")
+  opportunityId   String              @map("opportunity_id") @db.Uuid
+  pipelineId      String              @map("pipeline_id") @db.Uuid
+  stageId         String              @map("stage_id") @db.Uuid
+  attemptNumber   Int                 @map("attempt_number")
+  appliedOn       DateTime            @map("applied_on") @db.Date
+  method          ApplicationMethod?
+  /// Where the application was submitted (may differ from the job source).
+  submittedVia    String?             @map("submitted_via")
+  status          ApplicationStatus   @default(ACTIVE)
+  outcome         ApplicationOutcome?
+  closedAt        DateTime?           @map("closed_at") @db.Timestamptz(3)
+  stageChangedAt  DateTime            @default(now()) @map("stage_changed_at") @db.Timestamptz(3)
+  /// First genuine employer response, recorded by the user. Null = unknown.
+  firstResponseAt DateTime?           @map("first_response_at") @db.Timestamptz(3)
+  notes           String?
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity JobOpportunity        @relation(fields: [userId, opportunityId], references: [userId, id], onDelete: Cascade)
+  pipeline    Pipeline              @relation(fields: [userId, pipelineId], references: [userId, id], onDelete: NoAction)
+  stage       PipelineStage         @relation(fields: [userId, pipelineId, stageId], references: [userId, pipelineId, id], onDelete: NoAction)
+  interviews  Interview[]
+  offers      Offer[]
+  documents   ApplicationDocument[]
+  activities  ActivityEvent[]
+  tasks       Task[]
+
+  @@unique([userId, id])
+  @@unique([opportunityId, attemptNumber])
+  @@index([userId, status])
+  @@index([userId, stageId])
+  @@index([userId, appliedOn])
+  @@map("applications")
+}
+
+/// Immutable timeline entry. Summary and details are snapshots (stage names
+/// at the time), so renaming a stage never rewrites history.
+model ActivityEvent {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  userId        String       @map("user_id")
+  opportunityId String       @map("opportunity_id") @db.Uuid
+  applicationId String?      @map("application_id") @db.Uuid
+  type          ActivityType
+  summary       String
+  details       Json         @default("{}")
+  occurredAt    DateTime     @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity JobOpportunity @relation(fields: [userId, opportunityId], references: [userId, id], onDelete: Cascade)
+  application Application?   @relation(fields: [userId, applicationId], references: [userId, id], onDelete: Cascade)
+
+  @@index([userId, occurredAt])
+  @@index([opportunityId, occurredAt])
+  @@index([applicationId, occurredAt])
+  @@map("activity_events")
+}
+
+// ---------------------------------------------------------------------------
+// Interviews and tasks
+// ---------------------------------------------------------------------------
+
+model Interview {
+  id                    String          @id @default(uuid(7)) @db.Uuid
+  userId                String          @map("user_id")
+  applicationId         String          @map("application_id") @db.Uuid
+  title                 String
+  type                  InterviewType   @default(OTHER)
+  roundNumber           Int?            @map("round_number")
+  status                InterviewStatus @default(SCHEDULED)
+  result                InterviewResult @default(PENDING)
+  startsAt              DateTime?       @map("starts_at") @db.Timestamptz(3)
+  endsAt                DateTime?       @map("ends_at") @db.Timestamptz(3)
+  /// IANA timezone the interview was scheduled in.
+  timezone              String
+  mode                  InterviewMode   @default(VIDEO)
+  meetingUrl            String?         @map("meeting_url")
+  location              String?
+  interviewers          String?
+  prepNotes             String?         @map("prep_notes")
+  feedback              String?
+  /// Incremented on every reschedule. Part of reminder dedupe keys.
+  scheduleRevision      Int             @default(0) @map("schedule_revision")
+  /// Null = no reminder for this interview.
+  reminderMinutesBefore Int?            @map("reminder_minutes_before")
+  completedAt           DateTime?       @map("completed_at") @db.Timestamptz(3)
+  cancelledAt           DateTime?       @map("cancelled_at") @db.Timestamptz(3)
+  createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application  Application           @relation(fields: [userId, applicationId], references: [userId, id], onDelete: Cascade)
+  reschedules  InterviewReschedule[]
+  contacts     InterviewContact[]
+  tasks        Task[]
+  reminders    Reminder[]
+  calendarSync CalendarEventSync[]
+
+  @@unique([userId, id])
+  @@index([userId, startsAt])
+  @@index([applicationId])
+  @@map("interviews")
+}
+
+/// Rescheduling history for an interview (the interview row keeps its ID).
+model InterviewReschedule {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  userId           String    @map("user_id")
+  interviewId      String    @map("interview_id") @db.Uuid
+  previousStartsAt DateTime? @map("previous_starts_at") @db.Timestamptz(3)
+  previousEndsAt   DateTime? @map("previous_ends_at") @db.Timestamptz(3)
+  previousTimezone String    @map("previous_timezone")
+  newStartsAt      DateTime? @map("new_starts_at") @db.Timestamptz(3)
+  newEndsAt        DateTime? @map("new_ends_at") @db.Timestamptz(3)
+  newTimezone      String    @map("new_timezone")
+  reason           String?
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interview Interview @relation(fields: [userId, interviewId], references: [userId, id], onDelete: Cascade)
+
+  @@index([interviewId, createdAt])
+  @@map("interview_reschedules")
+}
+
+model InterviewContact {
+  userId      String @map("user_id")
+  interviewId String @map("interview_id") @db.Uuid
+  contactId   String @map("contact_id") @db.Uuid
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interview Interview @relation(fields: [userId, interviewId], references: [userId, id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [userId, contactId], references: [userId, id], onDelete: Cascade)
+
+  @@id([userId, interviewId, contactId])
+  @@index([userId, contactId])
+  @@map("interview_contacts")
+}
+
+model Task {
+  id                    String     @id @default(uuid(7)) @db.Uuid
+  userId                String     @map("user_id")
+  opportunityId         String?    @map("opportunity_id") @db.Uuid
+  applicationId         String?    @map("application_id") @db.Uuid
+  interviewId           String?    @map("interview_id") @db.Uuid
+  title                 String
+  description           String?
+  type                  TaskType   @default(OTHER)
+  priority              Priority   @default(MEDIUM)
+  status                TaskStatus @default(OPEN)
+  dueAt                 DateTime?  @map("due_at") @db.Timestamptz(3)
+  /// Null = no reminder for this task.
+  reminderMinutesBefore Int?       @map("reminder_minutes_before")
+  /// Incremented when the due date changes. Part of reminder dedupe keys.
+  scheduleRevision      Int        @default(0) @map("schedule_revision")
+  /// Why the system suggested this task (e.g. "application_submitted").
+  suggestionReason      String?    @map("suggestion_reason")
+  completedAt           DateTime?  @map("completed_at") @db.Timestamptz(3)
+  createdAt             DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity  JobOpportunity?     @relation(fields: [userId, opportunityId], references: [userId, id], onDelete: Cascade)
+  application  Application?        @relation(fields: [userId, applicationId], references: [userId, id], onDelete: Cascade)
+  interview    Interview?          @relation(fields: [userId, interviewId], references: [userId, id], onDelete: Cascade)
+  reminders    Reminder[]
+  calendarSync CalendarEventSync[]
+
+  @@unique([userId, id])
+  @@index([userId, status, dueAt])
+  @@index([applicationId])
+  @@map("tasks")
+}
+
+// ---------------------------------------------------------------------------
+// Documents and offers
+// ---------------------------------------------------------------------------
+
+/// Metadata for a privately stored file. Each row is one immutable version;
+/// "replace" uploads a new row that points at the one it replaces.
+model Document {
+  id               String         @id @default(uuid(7)) @db.Uuid
+  userId           String         @map("user_id")
+  kind             DocumentKind
+  title            String
+  versionLabel     String?        @map("version_label")
+  originalFilename String         @map("original_filename")
+  mimeType         String         @map("mime_type")
+  sizeBytes        Int            @map("size_bytes")
+  sha256           String?
+  /// Opaque object key ("users/<userId>/<uuid>"), never a public URL.
+  storageKey       String         @unique @map("storage_key")
+  status           DocumentStatus @default(UPLOADING)
+  notes            String?
+  replacesId       String?        @map("replaces_id") @db.Uuid
+  supersededAt     DateTime?      @map("superseded_at") @db.Timestamptz(3)
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Tenant-scoped; the migration narrows SetNull to replaces_id (PostgreSQL 15+).
+  replaces     Document?             @relation("DocumentVersions", fields: [userId, replacesId], references: [userId, id], onDelete: SetNull)
+  replacedBy   Document[]            @relation("DocumentVersions")
+  applications ApplicationDocument[]
+
+  @@unique([userId, id])
+  @@index([userId, kind, createdAt])
+  @@map("documents")
+}
+
+/// Which exact document version was used for an application attempt.
+model ApplicationDocument {
+  userId        String       @map("user_id")
+  applicationId String       @map("application_id") @db.Uuid
+  documentId    String       @map("document_id") @db.Uuid
+  purpose       DocumentKind
+  wasSubmitted  Boolean      @default(true) @map("was_submitted")
+  attachedAt    DateTime     @default(now()) @map("attached_at") @db.Timestamptz(3)
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application Application @relation(fields: [userId, applicationId], references: [userId, id], onDelete: Cascade)
+  document    Document    @relation(fields: [userId, documentId], references: [userId, id], onDelete: Cascade)
+
+  @@id([userId, applicationId, documentId])
+  @@index([userId, documentId])
+  @@map("application_documents")
+}
+
+/// One row per offer revision; a revision never overwrites earlier amounts.
+model Offer {
+  id               String       @id @default(uuid(7)) @db.Uuid
+  userId           String       @map("user_id")
+  applicationId    String       @map("application_id") @db.Uuid
+  revisionNumber   Int          @map("revision_number")
+  positionTitle    String       @map("position_title")
+  baseSalary       Decimal?     @map("base_salary") @db.Decimal(14, 2)
+  currency         String       @db.Char(3)
+  salaryPeriod     SalaryPeriod @default(ANNUALLY) @map("salary_period")
+  salaryBasis      SalaryBasis  @default(GROSS) @map("salary_basis")
+  bonus            String?
+  equity           String?
+  benefits         String?
+  startDate        DateTime?    @map("start_date") @db.Date
+  decisionDeadline DateTime?    @map("decision_deadline") @db.Date
+  receivedOn       DateTime     @default(dbgenerated("CURRENT_DATE")) @map("received_on") @db.Date
+  status           OfferStatus  @default(RECEIVED)
+  negotiationNotes String?      @map("negotiation_notes")
+  decidedAt        DateTime?    @map("decided_at") @db.Timestamptz(3)
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application Application @relation(fields: [userId, applicationId], references: [userId, id], onDelete: Cascade)
+  reminders   Reminder[]
+
+  @@unique([userId, id])
+  @@unique([applicationId, revisionNumber])
+  @@index([userId, status])
+  @@map("offers")
+}
+
+// ---------------------------------------------------------------------------
+// Reminders and notifications
+// ---------------------------------------------------------------------------
+
+/// Business record of one scheduled delivery: exactly one source (interview,
+/// task or offer) and exactly one channel. Graphile Worker owns queueing and
+/// retries; `dedupeKey` includes the source revision so a reschedule creates
+/// a new key and stale jobs can detect they are obsolete.
+model Reminder {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  userId         String          @map("user_id")
+  interviewId    String?         @map("interview_id") @db.Uuid
+  taskId         String?         @map("task_id") @db.Uuid
+  offerId        String?         @map("offer_id") @db.Uuid
+  channel        ReminderChannel
+  remindAt       DateTime        @map("remind_at") @db.Timestamptz(3)
+  sourceRevision Int             @default(0) @map("source_revision")
+  dedupeKey      String          @unique @map("dedupe_key")
+  status         ReminderStatus  @default(PENDING)
+  attempts       Int             @default(0)
+  lastError      String?         @map("last_error")
+  sentAt         DateTime?       @map("sent_at") @db.Timestamptz(3)
+  cancelledAt    DateTime?       @map("cancelled_at") @db.Timestamptz(3)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interview    Interview?             @relation(fields: [userId, interviewId], references: [userId, id], onDelete: Cascade)
+  task         Task?                  @relation(fields: [userId, taskId], references: [userId, id], onDelete: Cascade)
+  offer        Offer?                 @relation(fields: [userId, offerId], references: [userId, id], onDelete: Cascade)
+  notification Notification?
+  deliveries   NotificationDelivery[]
+
+  @@unique([userId, id])
+  @@index([status, remindAt])
+  @@index([userId, status])
+  @@map("reminders")
+}
+
+/// In-app inbox item. A unique reminder_id guarantees at most one
+/// notification per reminder even if a job runs twice.
+model Notification {
+  id         String           @id @default(uuid(7)) @db.Uuid
+  userId     String           @map("user_id")
+  reminderId String?          @unique @map("reminder_id") @db.Uuid
+  type       NotificationType
+  title      String
+  body       String?
+  link       String?
+  readAt     DateTime?        @map("read_at") @db.Timestamptz(3)
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Tenant-scoped; the migration narrows SetNull to reminder_id (PostgreSQL 15+).
+  reminder Reminder? @relation(fields: [userId, reminderId], references: [userId, id], onDelete: SetNull)
+
+  // Required by Prisma for the one-to-one composite relation above; implied
+  // by reminder_id being unique, which stays the idempotency guarantee.
+  @@unique([userId, reminderId])
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
+}
+
+/// Audit/idempotency log of delivery attempts (one row per channel attempt).
+model NotificationDelivery {
+  id                String          @id @default(uuid(7)) @db.Uuid
+  userId            String          @map("user_id")
+  reminderId        String?         @map("reminder_id") @db.Uuid
+  channel           ReminderChannel
+  status            DeliveryStatus
+  provider          String
+  idempotencyKey    String          @unique @map("idempotency_key")
+  providerMessageId String?         @map("provider_message_id")
+  error             String?
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Tenant-scoped; the migration narrows SetNull to reminder_id (PostgreSQL 15+).
+  reminder Reminder? @relation(fields: [userId, reminderId], references: [userId, id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([providerMessageId])
+  @@map("notification_deliveries")
+}
+
+// ---------------------------------------------------------------------------
+// Google Calendar one-way sync
+// ---------------------------------------------------------------------------
+
+model CalendarConnection {
+  id                    String                   @id @default(uuid(7)) @db.Uuid
+  userId                String                   @map("user_id")
+  provider              CalendarProvider         @default(GOOGLE)
+  accountEmail          String?                  @map("account_email")
+  calendarId            String                   @default("primary") @map("calendar_id")
+  calendarName          String?                  @map("calendar_name")
+  /// AES-256-GCM ciphertext. Never returned to the client.
+  encryptedRefreshToken String                   @map("encrypted_refresh_token")
+  encryptedAccessToken  String?                  @map("encrypted_access_token")
+  accessTokenExpiresAt  DateTime?                @map("access_token_expires_at") @db.Timestamptz(3)
+  scope                 String?
+  status                CalendarConnectionStatus @default(CONNECTED)
+  lastSyncedAt          DateTime?                @map("last_synced_at") @db.Timestamptz(3)
+  lastError             String?                  @map("last_error")
+  createdAt             DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events CalendarEventSync[]
+
+  @@unique([userId, id])
+  @@unique([userId, provider])
+  @@map("calendar_connections")
+}
+
+/// Maps one interview or task to one external event. Source FKs use SET NULL
+/// so deleting an interview keeps the link (DELETE_PENDING) until the worker
+/// has removed the remote event. Rows are only written by server code that
+/// has already verified ownership.
+model CalendarEventSync {
+  id              String             @id @default(uuid(7)) @db.Uuid
+  userId          String             @map("user_id")
+  connectionId    String             @map("connection_id") @db.Uuid
+  interviewId     String?            @map("interview_id") @db.Uuid
+  taskId          String?            @map("task_id") @db.Uuid
+  externalEventId String?            @map("external_event_id")
+  /// Calendar the external event was created in (may differ after the user changes destination).
+  calendarId      String?            @map("calendar_id")
+  status          CalendarSyncStatus @default(PENDING)
+  syncRevision    Int                @default(0) @map("sync_revision")
+  attempts        Int                @default(0)
+  lastError       String?            @map("last_error")
+  lastSyncedAt    DateTime?          @map("last_synced_at") @db.Timestamptz(3)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection CalendarConnection @relation(fields: [userId, connectionId], references: [userId, id], onDelete: Cascade)
+  // Tenant-scoped like every other private relation. The migration narrows
+  // SetNull to the source column only (PostgreSQL 15+), so the link outlives
+  // a deleted interview/task and the worker can still remove the remote event.
+  interview  Interview?         @relation(fields: [userId, interviewId], references: [userId, id], onDelete: SetNull)
+  task       Task?              @relation(fields: [userId, taskId], references: [userId, id], onDelete: SetNull)
+
+  @@unique([connectionId, interviewId])
+  @@unique([connectionId, taskId])
+  @@index([userId, status])
+  @@map("calendar_event_syncs")
+}

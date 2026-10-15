@@ -1,0 +1,4 @@
+# JobTrack is a private workspace: only the public landing page should be indexed.
+User-agent: *
+Allow: /$
+Disallow: /

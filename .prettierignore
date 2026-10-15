@@ -1,0 +1,17 @@
+node_modules
+.next
+src/generated
+prisma/migrations
+pnpm-lock.yaml
+references
+.data
+playwright-report
+test-results
+coverage
+src/components/ui
+docs/PRD.md
+docs/BACKLOG.md
+docs/DATA_MODEL.md
+README.md
+AGENTS.md
+CLAUDE.md
