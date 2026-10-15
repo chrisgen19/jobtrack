@@ -105,14 +105,19 @@ test.describe("core job tracker", () => {
       name: "Drag Full-Stack Developer at Acme Labs",
       exact: true,
     });
+    const live = page.locator('[id^="DndLiveRegion"]');
     await dragHandle.focus();
     await page.keyboard.press("Space");
     // The live region's "Picked up ..." is overwritten at once by "Over <column>.", so check the
     // handle's pressed state to know the drag has started.
     await expect(dragHandle).toHaveAttribute("aria-pressed", "true");
+    // Wait for each announcement before the next key: until dnd-kit has measured the columns,
+    // the arrow-key handler has nowhere to move the card, and the drop lands in the same column.
+    await expect(live).toContainText("Over Job Offer.");
     await page.keyboard.press("ArrowLeft");
+    await expect(live).not.toContainText("Over Job Offer.");
     await page.keyboard.press("Space");
-    await expect(page.locator('[id^="DndLiveRegion"]')).toContainText("Dropped in");
+    await expect(live).toContainText("Dropped in");
     await expect(page.getByRole("region", { name: /Job Offer column, 0 cards/ })).toBeVisible();
 
     // Kanban: the card title opens a summary drawer over the board; Escape returns to it.
