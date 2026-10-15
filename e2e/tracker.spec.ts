@@ -101,9 +101,15 @@ test.describe("core job tracker", () => {
     await expect(page.getByText(/moved to Job Offer/)).toBeVisible();
 
     // Kanban: drag with the keyboard from the card's handle (Space, arrow, Space).
-    await page.getByRole("button", { name: "Drag Full-Stack Developer at Acme Labs", exact: true }).focus();
+    const dragHandle = page.getByRole("button", {
+      name: "Drag Full-Stack Developer at Acme Labs",
+      exact: true,
+    });
+    await dragHandle.focus();
     await page.keyboard.press("Space");
-    await expect(page.locator('[id^="DndLiveRegion"]')).toContainText("Picked up Full-Stack Developer");
+    // The live region's "Picked up ..." is overwritten at once by "Over <column>.", so check the
+    // handle's pressed state to know the drag has started.
+    await expect(dragHandle).toHaveAttribute("aria-pressed", "true");
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("Space");
     await expect(page.locator('[id^="DndLiveRegion"]')).toContainText("Dropped in");
