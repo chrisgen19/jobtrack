@@ -412,10 +412,11 @@ export type TimelineEvent = {
   attemptNumber: number | null;
 };
 
-/** Activity for one application, or for every attempt of an opportunity. */
+/** Activity for one application, or for every attempt of an opportunity (newest first, up to `take`). */
 export async function listActivity(scope: {
   applicationId?: string;
   opportunityId?: string;
+  take?: number;
 }): Promise<TimelineEvent[]> {
   const { user } = await requireWorkspace();
   if (!scope.applicationId && !scope.opportunityId) return [];
@@ -427,7 +428,7 @@ export async function listActivity(scope: {
         : { opportunityId: scope.opportunityId }),
     },
     orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
-    take: 200,
+    take: Math.min(scope.take ?? 200, 200),
     select: {
       id: true,
       type: true,

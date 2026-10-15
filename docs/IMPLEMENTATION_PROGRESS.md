@@ -57,6 +57,7 @@ sign out + password reset, mobile navigation).
 - [x] Suggested follow-up task after applying (editable/dismissible `SUGGESTED` task, never an outgoing email)
 - [x] Jobs table (TanStack Table v9, client sorting) with view/search/stage/priority/work/source filters in the URL
 - [x] Kanban board (dnd-kit): virtual Saved column, optimistic moves, keyboard dragging between columns, live announcements, "Move to" menu on every card, drop a saved job on a stage to record an application
+- [ ] Pipeline peek drawer (prototype, `feature/pipeline-peek-drawer`): application card titles open a read-only summary in a right-hand Sheet via an intercepting route in the `@peek` slot (`/pipeline/@peek/(..)applications/[id]`), with an "Open full page" link; refresh or a shared link renders the full page. Checked by hand in a browser; the e2e step has not run yet
 - [x] Job detail page, application detail page (overview + timeline)
 - [x] CSV export of jobs and attempts (RFC 4180, formula-injection safe)
 
