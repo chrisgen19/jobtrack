@@ -16,7 +16,7 @@
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy && graphile-worker --schema-only",
+    "db:deploy": "prisma migrate deploy && node --env-file-if-exists=.env node_modules/graphile-worker/dist/cli.js --schema-only",
     "db:seed": "prisma db seed",
     "db:mock": "tsx scripts/mock-account.ts",
     "db:studio": "prisma studio",
