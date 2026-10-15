@@ -18,9 +18,9 @@ import {
   type KeyboardCoordinateGetter,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { GripVertical, MoreHorizontal, Plus } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { PriorityBadge, StatusBadge } from "@/components/shared/badges";
 import { CompanyLogo } from "@/components/shared/company-logo";
@@ -153,8 +153,8 @@ export function KanbanBoard({ saved, columns, options }: KanbanBoardProps) {
   return (
     <>
       <p className="mb-3 text-[11px] text-[#9ba99f]">
-        {total} cards · {optimisticColumns.length} stages · Drag with a mouse or touch, or focus a card and
-        press Space, arrow keys, then Space to drop. Every card also has a “Move to” menu.
+        {total} cards · {optimisticColumns.length} stages · Drag with a mouse or touch, or focus a card’s drag
+        handle and press Space, arrow keys, then Space to drop. Every card also has a “Move to” menu.
       </p>
       <DndContext
         // Stable id: dnd-kit's fallback is a module-level counter that differs between SSR and hydration.
@@ -181,12 +181,15 @@ export function KanbanBoard({ saved, columns, options }: KanbanBoardProps) {
                   id={`saved:${card.opportunityId}`}
                   data={{ kind: "saved", card }}
                 >
-                  <CardBody
-                    href={`/jobs/${card.opportunityId}`}
-                    card={card}
-                    footer={`Saved ${card.savedOn ? formatDateOnly(card.savedOn, "MMM d") : ""}`}
-                    menu={<SavedCardMenu card={card} />}
-                  />
+                  {(handle) => (
+                    <CardBody
+                      href={`/jobs/${card.opportunityId}`}
+                      card={card}
+                      footer={`Saved ${card.savedOn ? formatDateOnly(card.savedOn, "MMM d") : ""}`}
+                      handle={handle}
+                      menu={<SavedCardMenu card={card} />}
+                    />
+                  )}
                 </DraggableCard>
               ))}
             </Column>
@@ -206,19 +209,22 @@ export function KanbanBoard({ saved, columns, options }: KanbanBoardProps) {
                     id={card.applicationId}
                     data={{ kind: "application", card }}
                   >
-                    <CardBody
-                      href={`/applications/${card.applicationId}`}
-                      card={card}
-                      paused={card.status === "PAUSED"}
-                      footer={`${card.attemptNumber > 1 ? `Attempt ${card.attemptNumber} · ` : ""}Applied ${formatDateOnly(card.appliedOn, "MMM d")}`}
-                      menu={
-                        <MoveMenu
-                          card={card}
-                          columns={optimisticColumns}
-                          onMove={(stageId) => moveApplication(card, stageId)}
-                        />
-                      }
-                    />
+                    {(handle) => (
+                      <CardBody
+                        href={`/applications/${card.applicationId}`}
+                        card={card}
+                        paused={card.status === "PAUSED"}
+                        footer={`${card.attemptNumber > 1 ? `Attempt ${card.attemptNumber} · ` : ""}Applied ${formatDateOnly(card.appliedOn, "MMM d")}`}
+                        handle={handle}
+                        menu={
+                          <MoveMenu
+                            card={card}
+                            columns={optimisticColumns}
+                            onMove={(stageId) => moveApplication(card, stageId)}
+                          />
+                        }
+                      />
+                    )}
                   </DraggableCard>
                 ))}
               </Column>
@@ -286,35 +292,53 @@ function Column({ id, title, color, count, disabled, onAdd, children }: ColumnPr
   );
 }
 
-function DraggableCard({ id, data, children }: { id: string; data: DragData; children: React.ReactNode }) {
+/**
+ * A board card. Mouse and touch drag the whole card; keyboard dragging lives on a separate
+ * handle button (the dnd-kit activator). The card itself is a plain article, because the
+ * children of a role="button" element are presentational and screen readers may not
+ * announce the title link and menu button inside it.
+ */
+function DraggableCard({
+  id,
+  data,
+  children,
+}: {
+  id: string;
+  data: DragData;
+  children: (handle: React.ReactNode) => React.ReactNode;
+}) {
   const label = `${data.card.title} at ${data.card.company}`;
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } = useDraggable({
     id,
     data,
   });
-  // The card is also the activator, so Enter/Space only pick it up when the card itself has
-  // focus; from the title link inside, Enter follows the link instead of starting a drag.
-  const ref = useCallback(
-    (node: HTMLElement | null) => {
-      setNodeRef(node);
-      setActivatorNodeRef(node);
-    },
-    [setNodeRef, setActivatorNodeRef],
+  const { onKeyDown, ...pointerListeners } = listeners ?? {};
+  const handle = (
+    <Button
+      ref={setActivatorNodeRef}
+      variant="ghost"
+      size="icon-sm"
+      className="cursor-grab text-[#9aa79f] active:cursor-grabbing"
+      {...attributes}
+      onKeyDown={onKeyDown as React.KeyboardEventHandler<HTMLButtonElement> | undefined}
+      aria-label={`Drag ${label}`}
+      aria-roledescription="Draggable job card"
+    >
+      <GripVertical aria-hidden />
+    </Button>
   );
   return (
     <article
-      ref={ref}
+      ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform) }}
       className={cn(
         "cursor-grab touch-none rounded-xl border border-[#e6ebe5] bg-white p-3.5 shadow-card hover:border-[#a1c8b1] hover:shadow-card-hover active:cursor-grabbing",
         isDragging && "opacity-40",
       )}
-      {...attributes}
-      {...listeners}
+      {...pointerListeners}
       aria-label={label}
-      aria-roledescription="Draggable job card"
     >
-      {children}
+      {children(handle)}
     </article>
   );
 }
@@ -335,12 +359,14 @@ function CardBody({
   card,
   footer,
   href,
+  handle,
   menu,
   paused,
 }: {
   card: CardLike;
   footer: string;
   href?: string;
+  handle?: React.ReactNode;
   menu?: React.ReactNode;
   paused?: boolean;
 }) {
@@ -351,7 +377,12 @@ function CardBody({
           <CompanyLogo name={card.company} size="sm" />
           <span className="truncate">{card.company}</span>
         </div>
-        {menu}
+        {handle || menu ? (
+          <div className="flex flex-none items-center">
+            {handle}
+            {menu}
+          </div>
+        ) : null}
       </div>
       <h3 className="mt-3 mb-1.5 text-[13px] leading-tight font-bold tracking-[-0.2px]">
         {href ? (
