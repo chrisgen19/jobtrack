@@ -18,6 +18,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy && graphile-worker --schema-only",
     "db:seed": "prisma db seed",
+    "db:mock": "tsx scripts/mock-account.ts",
     "db:studio": "prisma studio",
     "worker:dev": "tsx watch src/worker/index.ts",
     "worker:start": "tsx src/worker/index.ts",

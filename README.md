@@ -51,6 +51,7 @@ newest file to follow the verification link. Without R2 credentials documents ar
 | `pnpm db:migrate` | Create and apply a migration in development (`prisma migrate dev`) |
 | `pnpm db:deploy` | Production-style: `prisma migrate deploy` + Graphile Worker schema |
 | `pnpm db:seed` | Demo data (refuses in production unless `ALLOW_DEMO_SEED=true`) |
+| `pnpm db:mock <email> [--reset]` | Fills your own registered local account with mock data covering every scenario and label (local databases only; `--reset` replaces that account's data) |
 | `pnpm auth:generate` | Regenerate Better Auth models with the official CLI |
 
 ## Project structure
