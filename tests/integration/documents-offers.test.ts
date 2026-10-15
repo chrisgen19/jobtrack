@@ -548,7 +548,7 @@ describe("analytics and export", () => {
     await editAppliedOn("2026-10-05");
   });
 
-  it("rebuild migration recovers every response from its latest event and the old column stays unused", async () => {
+  it("rebuild migration recovers every response from its latest valid event without dropping anything", async () => {
     const { user, applicationId: corrected } = await setup(); // user now in Asia/Manila
     const another = async (title: string) =>
       (
@@ -558,11 +558,20 @@ describe("analytics and export", () => {
       ).applicationId!;
     const oldColumnOnly = await another("Old column only");
     const noResponse = await another("No response");
+    const unchanged = await another("Unchanged");
+    const tied = await another("Tied events");
+    const invalid = await another("Invalid event date");
     const laNoon = zonedToUtc("2026-10-05", "12:00", "America/Los_Angeles"); // reads as Oct 6 in Manila
-    const responseEvent = async (applicationId: string, respondedOn: string, createdAt: Date) => {
+    const responseEvent = async (
+      applicationId: string,
+      respondedOn: string,
+      createdAt: Date,
+      id?: string,
+    ) => {
       const { opportunityId } = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
       await prisma.activityEvent.create({
         data: {
+          ...(id ? { id } : {}),
           userId: user.id,
           opportunityId,
           applicationId,
@@ -574,16 +583,15 @@ describe("analytics and export", () => {
         },
       });
     };
+    const setResponseOn = (id: string, date: string) =>
+      prisma.application.update({ where: { id }, data: { firstResponseOn: parseDateOnly(date) } });
     // The client no longer sees first_response_at (@ignore), so it is set with raw SQL.
     const setOldColumn = (id: string) =>
       prisma.$executeRaw`UPDATE "applications" SET "first_response_at" = ${laNoon} WHERE "id" = ${id}::uuid`;
 
     // Backfilled as Oct 4, then corrected to Oct 5 by the release before the expand during
     // its deploy, which only updated the old column and added an event.
-    await prisma.application.update({
-      where: { id: corrected },
-      data: { firstResponseOn: parseDateOnly("2026-10-04") },
-    });
+    await setResponseOn(corrected, "2026-10-04");
     await setOldColumn(corrected);
     await responseEvent(corrected, "2026-10-04", new Date("2026-10-10T00:00:00Z"));
     await responseEvent(corrected, "2026-10-05", new Date("2026-10-11T00:00:00Z"));
@@ -591,24 +599,39 @@ describe("analytics and export", () => {
     await setOldColumn(oldColumnOnly);
     // A stray event never brings back a response the application doesn't have.
     await responseEvent(noResponse, "2026-10-03", new Date("2026-10-10T00:00:00Z"));
+    // Already holding its event's date: not rewritten.
+    await setResponseOn(unchanged, "2026-10-03");
+    await responseEvent(unchanged, "2026-10-03", new Date("2026-10-10T00:00:00Z"));
+    // Same created_at: the newer (higher) UUIDv7 id wins.
+    const sameTime = new Date("2026-10-11T00:00:00Z");
+    await setResponseOn(tied, "2026-10-04");
+    await responseEvent(tied, "2026-10-08", sameTime, "019a0000-0000-7000-8000-000000000002");
+    await responseEvent(tied, "2026-10-07", sameTime, "019a0000-0000-7000-8000-000000000001");
+    // A newer event whose date isn't real is skipped instead of failing the migration.
+    await setResponseOn(invalid, "2026-10-04");
+    await responseEvent(invalid, "2026-10-09", new Date("2026-10-10T00:00:00Z"));
+    await responseEvent(invalid, "2026-02-30", new Date("2026-10-11T00:00:00Z"));
 
     const statements = migrationStatements("20261015024025_rebuild_first_response_on");
-    expect(statements).toHaveLength(3);
+    expect(statements).toHaveLength(4);
+    expect(statements[0]).toMatch(/^LOCK TABLE "applications" IN SHARE ROW EXCLUSIVE MODE$/);
     expect(statements.some((statement) => /\bDROP\b/i.test(statement))).toBe(false);
-    for (const statement of statements) await prisma.$executeRawUnsafe(statement);
+    // LOCK TABLE needs a transaction, as migrate deploy runs a migration.
+    const affected = await prisma.$transaction(async (tx) => {
+      const counts: number[] = [];
+      for (const statement of statements) counts.push(await tx.$executeRawUnsafe(statement));
+      return counts;
+    });
+    expect(affected[1]).toBe(3); // Rebuild 1 rewrites only corrected, tied and invalid
 
     const responseOn = async (id: string) =>
       toDateOnlyOrNull((await prisma.application.findUniqueOrThrow({ where: { id } })).firstResponseOn);
     expect(await responseOn(corrected)).toBe("2026-10-05"); // the latest entered date wins
     expect(await responseOn(oldColumnOnly)).toBe("2026-10-06"); // no event: what it showed
     expect(await responseOn(noResponse)).toBeNull();
-
-    // This release no longer writes the old column, which stays for the release still serving.
-    await recordEmployerResponse(noResponse, "2026-10-04");
-    const [{ old }] = await prisma.$queryRaw<[{ old: Date | null }]>`
-      select "first_response_at" as old from "applications" where "id" = ${noResponse}::uuid`;
-    expect(old).toBeNull();
-    expect(await responseOn(noResponse)).toBe("2026-10-04");
+    expect(await responseOn(unchanged)).toBe("2026-10-03");
+    expect(await responseOn(tied)).toBe("2026-10-08");
+    expect(await responseOn(invalid)).toBe("2026-10-09");
   });
 
   it("shows the response event on its recorded date after a timezone change", async () => {

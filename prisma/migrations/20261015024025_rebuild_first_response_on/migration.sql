@@ -5,11 +5,19 @@
 -- @ignore); a later release drops the column once no running code selects it.
 -- Written by hand; see the steps below.
 
+-- Writes to applications wait (reads do not) until this migration commits. Without the lock,
+-- a response the still-serving release corrects while Rebuild 1 runs could be overwritten:
+-- Postgres re-checks the locked row but keeps the subquery's older event. The lock also waits
+-- for such in-flight corrections, so Rebuild 1 sees their events.
+LOCK TABLE "applications" IN SHARE ROW EXCLUSIVE MODE;
+
 -- Rebuild 1: every recorded response from its latest EMPLOYER_RESPONSE_RECEIVED event.
 -- Both releases saved the entered date there, so this also picks up a response the
 -- release before the expand recorded or corrected during the expand deploy (it only
 -- updated first_response_at). Only rows that already have a response are touched, so
--- a response is never brought back from an old event.
+-- a response is never brought back from an old event, and rows already holding the
+-- event's date are not rewritten. Values that are not real dates are skipped instead of
+-- failing the cast (and with it the deploy); ties on created_at go to the newer UUIDv7 id.
 UPDATE "applications" AS a
 SET "first_response_on" = latest."responded_on"
 FROM (
@@ -20,10 +28,12 @@ FROM (
   WHERE e."type" = 'EMPLOYER_RESPONSE_RECEIVED'
     AND e."application_id" IS NOT NULL
     AND e."details" ->> 'respondedOn' ~ '^\d{4}-\d{2}-\d{2}$'
-  ORDER BY e."application_id", e."created_at" DESC
+    AND pg_input_is_valid(e."details" ->> 'respondedOn', 'date')
+  ORDER BY e."application_id", e."created_at" DESC, e."id" DESC
 ) AS latest
 WHERE latest."application_id" = a."id"
-  AND (a."first_response_on" IS NOT NULL OR a."first_response_at" IS NOT NULL);
+  AND (a."first_response_on" IS NOT NULL OR a."first_response_at" IS NOT NULL)
+  AND a."first_response_on" IS DISTINCT FROM latest."responded_on";
 
 -- Rebuild 2: responses without such an event that only the old column has, as the
 -- date they show in the user's current timezone (UTC without a preferences row).
