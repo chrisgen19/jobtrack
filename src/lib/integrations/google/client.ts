@@ -110,14 +110,23 @@ export function refreshAccessToken(refreshToken: string): Promise<TokenResponse>
   return tokenRequest({ refresh_token: refreshToken, grant_type: "refresh_token" });
 }
 
-/** Best-effort token revocation (disconnect / account deletion). */
+/**
+ * Revokes a token (disconnect / account deletion). Throws unless Google
+ * confirms it, so callers never treat a failed revoke as done. A 400
+ * `invalid_token` means the token is already expired or revoked, so there is
+ * nothing left to revoke.
+ */
 export async function revokeToken(token: string): Promise<void> {
-  await fetch(REVOKE_URL, {
+  const response = await fetch(REVOKE_URL, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ token }),
     signal: AbortSignal.timeout(10_000),
   });
+  if (response.ok) return;
+  const error = await readError(response);
+  if (error.status === 400 && error.reason === "invalid_token") return;
+  throw error;
 }
 
 /** Email claim from the ID token Google returned on the token endpoint (TLS, not user input). */

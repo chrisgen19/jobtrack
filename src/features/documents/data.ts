@@ -6,7 +6,6 @@ import { requireWorkspace } from "@/features/workspace/data";
 import { DomainError, NotFoundError } from "@/lib/action-result";
 import { storageEnv } from "@/lib/env";
 import { getStorage } from "@/lib/integrations/storage";
-import { enqueueJob } from "@/lib/jobs/queue";
 import { DOCUMENT_KIND_LABEL } from "@/lib/labels";
 import { errorMessage, logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -101,9 +100,10 @@ export async function getDocumentForDownload(documentId: string): Promise<Downlo
 
 /**
  * Deletes a document version: metadata (and its application links) first,
- * then the stored bytes. File cleanup is queued in the same transaction as
- * the metadata delete, so a crash or storage outage afterwards cannot lose
- * the storage key; the worker removes the object if the inline delete fails.
+ * then the stored bytes. The `documents_queue_file_cleanup` trigger queues
+ * file cleanup in the same transaction as the metadata delete, so a crash or
+ * storage outage afterwards cannot lose the storage key; the worker removes
+ * the object if the inline delete fails.
  */
 export async function deleteDocument(documentId: string): Promise<void> {
   const { user } = await requireWorkspace();
@@ -129,8 +129,6 @@ export async function deleteDocument(documentId: string): Promise<void> {
         details: { documentId: document.id },
       });
     }
-    // Visible to the worker only after commit, when no row references the key.
-    await enqueueJob(tx, "delete_user_files", { storageKeys: [document.storageKey] }, { maxAttempts: 20 });
     await tx.document.delete({ where: { id: document.id } });
   });
 

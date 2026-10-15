@@ -203,20 +203,36 @@ export async function removeSyncedEvents(): Promise<number> {
 }
 
 /**
- * Disconnects: revokes Google's grant (best effort) and deletes the stored
- * credentials and sync links. Events already in Google stay there unless
- * removed first.
+ * Disconnects: revokes Google's grant, then deletes the stored credentials
+ * and sync links. If Google doesn't confirm the revoke, nothing is deleted so
+ * the user can retry (the grant may still be active). Events already in
+ * Google stay there unless removed first.
  */
 export async function disconnectCalendar(): Promise<void> {
   const { user } = await requireWorkspace();
   const connection = await loadConnection(user.id);
+  let refreshToken: string | null = null;
   try {
-    await revokeToken(decryptSecret(connection.encryptedRefreshToken));
+    refreshToken = decryptSecret(connection.encryptedRefreshToken);
   } catch (error) {
-    logger.warn("google token revoke failed during disconnect", {
+    // Unreadable (e.g. rotated key): it can't be revoked, so don't block the disconnect on it.
+    logger.warn("stored google token unreadable during disconnect", {
       userId: user.id,
       error: errorMessage(error),
     });
+  }
+  if (refreshToken) {
+    try {
+      await revokeToken(refreshToken);
+    } catch (error) {
+      logger.warn("google token revoke failed during disconnect", {
+        userId: user.id,
+        error: errorMessage(error),
+      });
+      throw new DomainError(
+        "Google didn't confirm that JobTrack's access was removed, so nothing was disconnected. Try again in a moment.",
+      );
+    }
   }
   await prisma.calendarConnection.delete({ where: { id: connection.id } });
 }

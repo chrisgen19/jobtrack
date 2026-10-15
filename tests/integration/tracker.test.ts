@@ -143,6 +143,26 @@ describe("opportunities and applications", () => {
     expect((await getPipelineStages()).map((stage) => stage.position)).toEqual([0, 1, 2, 3, 4]);
   });
 
+  it("logs the move of a closed application when its stage is deleted, keeping it closed", async () => {
+    await onboardedUser();
+    const { applicationId } = await createOpportunity(job({ alreadyApplied: true, appliedOn: "2026-10-01" }));
+    await closeApplication(applicationId!, "REJECTED");
+    const [applied, screening] = await getPipelineStages();
+
+    await deleteStage(applied!.id, screening!.id);
+
+    const detail = await getApplicationDetail(applicationId!);
+    expect(detail).toMatchObject({ status: "CLOSED", outcome: "REJECTED" });
+    expect(detail!.stage.id).toBe(screening!.id);
+    const events = await listActivity({ applicationId: applicationId! });
+    expect(events.filter((event) => event.type === "STAGE_CHANGED").map((event) => event.summary)).toEqual([
+      "Moved from Applied to Recruiter Screening",
+    ]);
+    // Users still have to reopen before moving it themselves.
+    const other = (await getPipelineStages()).find((stage) => stage.id !== screening!.id)!;
+    await expect(changeApplicationStage(applicationId!, other.id)).rejects.toThrow(/Reopen/);
+  });
+
   it("warns about duplicates without blocking a second save", async () => {
     await onboardedUser();
     await createOpportunity(job({ postingUrl: "https://www.acme.test/jobs/123?utm=x" }));

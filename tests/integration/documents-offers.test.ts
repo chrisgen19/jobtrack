@@ -1,7 +1,13 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { beforeAccountDelete } from "@/features/account/deletion";
 import { getAnalytics } from "@/features/analytics/data";
-import { getApplicationDetail, listActivity, recordEmployerResponse } from "@/features/applications/data";
+import {
+  getApplicationDetail,
+  listActivity,
+  recordEmployerResponse,
+  updateApplicationDetails,
+} from "@/features/applications/data";
+import { applicationDetailsSchema } from "@/features/applications/schemas";
 import {
   createContact,
   deleteContact,
@@ -33,6 +39,7 @@ import { createOfferSchema } from "@/features/offers/schemas";
 import { createOpportunity } from "@/features/opportunities/data";
 import { quickAddSchema } from "@/features/opportunities/schemas";
 import { completeOnboarding, updateRegionalPreferences } from "@/features/workspace/data";
+import { addDaysToDateOnly, todayInTimeZone, toDateOnly } from "@/lib/dates";
 import { setStorageForTests } from "@/lib/integrations/storage";
 import { MAX_STORAGE_KEYS_PER_JOB } from "@/lib/jobs/types";
 import { deleteUserFilesTask } from "@/worker/tasks/delete-user-files";
@@ -476,6 +483,30 @@ describe("analytics and export", () => {
     expect(report.medianResponseDays).toBe(4);
   });
 
+  it("keeps the response date between the application date and today", async () => {
+    const { applicationId } = await setup(); // applied on 2026-10-01
+    const tomorrow = addDaysToDateOnly(todayInTimeZone("Asia/Manila"), 1);
+    await expect(recordEmployerResponse(applicationId, "2026-09-30")).rejects.toThrow(
+      /can't be before the application date/,
+    );
+    await expect(recordEmployerResponse(applicationId, tomorrow)).rejects.toThrow(/can't be in the future/);
+    expect(
+      (await prisma.application.findUniqueOrThrow({ where: { id: applicationId } })).firstResponseAt,
+    ).toBeNull();
+
+    await recordEmployerResponse(applicationId, "2026-10-05");
+    const editAppliedOn = (appliedOn: string) =>
+      updateApplicationDetails(applicationDetailsSchema.parse({ applicationId, appliedOn }));
+    await expect(editAppliedOn("2026-10-06")).rejects.toThrow(/can't be after the employer's response/);
+    expect(
+      toDateOnly((await prisma.application.findUniqueOrThrow({ where: { id: applicationId } })).appliedOn),
+    ).toBe("2026-10-01");
+
+    await editAppliedOn("2026-10-05");
+    const report = await getAnalytics("2026-09-01", "2026-10-31", "week");
+    expect(report.medianResponseDays).toBe(0);
+  });
+
   it("exports only the owner's data and no secrets", async () => {
     await setup("Alice");
     await upload("Alice resume");
@@ -494,7 +525,16 @@ describe("analytics and export", () => {
 describe("account deletion file cleanup", () => {
   beforeEach(resetDatabase);
 
-  it("queues file cleanup in batches the worker accepts", async () => {
+  async function queuedCleanupBatches(): Promise<string[][]> {
+    // The public jobs view hides payloads, so read them from Graphile's own tables.
+    const jobs = await prisma.$queryRaw<{ payload: { storageKeys: string[] } }[]>`
+      select job.payload from graphile_worker._private_jobs job
+      join graphile_worker._private_tasks task on task.id = job.task_id
+      where task.identifier = 'delete_user_files'`;
+    return jobs.map((job) => job.payload.storageKeys);
+  }
+
+  it("queues cleanup for every document the account delete removes, even uploads during it", async () => {
     const { user } = await setup();
     const total = MAX_STORAGE_KEYS_PER_JOB * 2 + 500;
     await prisma.document.createMany({
@@ -509,20 +549,34 @@ describe("account deletion file cleanup", () => {
       })),
     });
 
-    // Queued before the user row is deleted, so a crash afterwards cannot lose the keys.
     await beforeAccountDelete(user.id);
+    // An upload that commits after the hooks ran, before Better Auth deletes the user.
+    const late = await upload("Late resume");
+    const { storageKey: lateKey } = await prisma.document.findUniqueOrThrow({ where: { id: late } });
 
-    // The public jobs view hides payloads, so read them from Graphile's own tables.
-    const jobs = await prisma.$queryRaw<{ payload: { storageKeys: string[] } }[]>`
-      select job.payload from graphile_worker._private_jobs job
-      join graphile_worker._private_tasks task on task.id = job.task_id
-      where task.identifier = 'delete_user_files'`;
-    expect(jobs.map((job) => job.payload.storageKeys.length).sort((a, b) => b - a)).toEqual([
+    await prisma.user.delete({ where: { id: user.id } });
+    const batches = await queuedCleanupBatches();
+    expect(batches.map((batch) => batch.length).sort((a, b) => b - a)).toEqual([
       MAX_STORAGE_KEYS_PER_JOB,
       MAX_STORAGE_KEYS_PER_JOB,
-      500,
+      501,
     ]);
-    expect(new Set(jobs.flatMap((job) => job.payload.storageKeys)).size).toBe(total);
+    const keys = new Set(batches.flat());
+    expect(keys.size).toBe(total + 1);
+    expect(keys.has(lateKey)).toBe(true);
+  });
+
+  it("queues no file cleanup when the account delete rolls back", async () => {
+    const { user } = await setup();
+    await upload("Resume");
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await tx.user.delete({ where: { id: user.id } });
+        throw new Error("rolled back");
+      }),
+    ).rejects.toThrow("rolled back");
+    expect(await queuedCleanupBatches()).toEqual([]);
+    expect(await prisma.document.count()).toBe(1);
   });
 
   it("removes files only once no document references them, retrying until then", async () => {

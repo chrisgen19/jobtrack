@@ -19,7 +19,15 @@ import {
 } from "@/features/integrations/side-effects";
 import { requireWorkspace, type Workspace } from "@/features/workspace/data";
 import { DomainError, NotFoundError } from "@/lib/action-result";
-import { parseDateOnly, toDateOnly, toDateOnlyOrNull, zonedToUtc } from "@/lib/dates";
+import {
+  formatDateOnly,
+  parseDateOnly,
+  todayInTimeZone,
+  toDateOnly,
+  toDateOnlyOrNull,
+  utcToZonedParts,
+  zonedToUtc,
+} from "@/lib/dates";
 import { APPLICATION_OUTCOME_LABEL } from "@/lib/labels";
 import { decimalToString } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
@@ -50,7 +58,14 @@ export async function changeApplicationStage(applicationId: string, stageId: str
 async function loadOwnedApplication(userId: string, applicationId: string) {
   const application = await prisma.application.findFirst({
     where: { id: applicationId, userId },
-    select: { id: true, status: true, outcome: true, opportunityId: true },
+    select: {
+      id: true,
+      status: true,
+      outcome: true,
+      opportunityId: true,
+      appliedOn: true,
+      firstResponseAt: true,
+    },
   });
   if (!application) throw new NotFoundError("Application");
   return application;
@@ -139,10 +154,21 @@ export async function reopenApplication(applicationId: string): Promise<void> {
   });
 }
 
-/** Records the first genuine employer response (used for response-time analytics). */
+/**
+ * Records the first genuine employer response (used for response-time
+ * analytics). The date must fall between the application date and today in
+ * the user's timezone, so response times are never negative.
+ */
 export async function recordEmployerResponse(applicationId: string, respondedOn: string): Promise<void> {
   const { user, preferences } = await requireWorkspace();
   const application = await loadOwnedApplication(user.id, applicationId);
+  const appliedOn = toDateOnly(application.appliedOn);
+  if (respondedOn < appliedOn)
+    throw new DomainError(
+      `The response date can't be before the application date (${formatDateOnly(appliedOn)}).`,
+    );
+  if (respondedOn > todayInTimeZone(preferences.timezone))
+    throw new DomainError("The response date can't be in the future.");
   const respondedAt = zonedToUtc(respondedOn, "12:00", preferences.timezone);
   await prisma.$transaction(async (tx) => {
     await tx.application.update({ where: { id: application.id }, data: { firstResponseAt: respondedAt } });
@@ -159,8 +185,16 @@ export async function recordEmployerResponse(applicationId: string, respondedOn:
 }
 
 export async function updateApplicationDetails(input: ApplicationDetailsInput): Promise<void> {
-  const { user } = await requireWorkspace();
+  const { user, preferences } = await requireWorkspace();
   const application = await loadOwnedApplication(user.id, input.applicationId);
+  if (application.firstResponseAt) {
+    // Same calendar date analytics derives from the stored response instant.
+    const respondedOn = utcToZonedParts(application.firstResponseAt, preferences.timezone).date;
+    if (input.appliedOn > respondedOn)
+      throw new DomainError(
+        `The application date can't be after the employer's response (${formatDateOnly(respondedOn)}).`,
+      );
+  }
   await prisma.$transaction(async (tx) => {
     await tx.application.update({
       where: { id: application.id },

@@ -151,7 +151,7 @@ export async function deleteStage(stageId: string, moveToStageId?: string): Prom
 
     const inUse = await tx.application.findMany({
       where: { userId: user.id, stageId: stage.id },
-      select: { id: true, status: true },
+      select: { id: true },
     });
     if (inUse.length > 0) {
       if (!moveToStageId || moveToStageId === stage.id) {
@@ -164,14 +164,12 @@ export async function deleteStage(stageId: string, moveToStageId?: string): Prom
         select: { id: true },
       });
       if (!target) throw new DomainError("Choose an active stage from the same pipeline.");
+      // Closed applications move too, with the same logged event, so the timeline explains it.
       for (const application of inUse) {
-        if (application.status === "CLOSED") {
-          await tx.application.update({ where: { id: application.id }, data: { stageId: target.id } });
-        } else {
-          await changeStageInTx(tx, user.id, application.id, target.id, {
-            reason: `Stage "${stage.name}" was deleted`,
-          });
-        }
+        await changeStageInTx(tx, user.id, application.id, target.id, {
+          reason: `Stage "${stage.name}" was deleted`,
+          allowClosed: true,
+        });
       }
     }
     await tx.pipelineStage.delete({ where: { id: stage.id } });

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { closeApplication, reopenApplication } from "@/features/applications/data";
 import { syncCalendarEvent } from "@/features/calendar-sync/sync";
+import { disconnectCalendar } from "@/features/integrations/data";
 import { queueCalendarSync } from "@/features/integrations/side-effects";
 import {
   cancelInterview,
@@ -473,6 +474,30 @@ describe("Google Calendar one-way sync", () => {
       1,
     );
     expect(await prisma.interview.count({ where: { id: interviewId, status: "SCHEDULED" } })).toBe(1);
+  });
+
+  it("keeps the connection when Google doesn't confirm the revoke, and disconnects once it does", async () => {
+    const { user } = await setup();
+    const connection = await connect(user.id);
+    const revokeResponse = (status: number, body: object = {}) =>
+      new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    try {
+      fetchMock.mockResolvedValueOnce(revokeResponse(503, { error: "server_error" }));
+      await expect(disconnectCalendar()).rejects.toThrow(/nothing was disconnected/);
+      expect(await prisma.calendarConnection.count({ where: { id: connection.id } })).toBe(1);
+
+      // Already expired or revoked: nothing left to revoke, so the disconnect goes through.
+      fetchMock.mockResolvedValueOnce(revokeResponse(400, { error: "invalid_token" }));
+      await disconnectCalendar();
+      expect(await prisma.calendarConnection.count({ where: { id: connection.id } })).toBe(0);
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        "https://oauth2.googleapis.com/revoke",
+        expect.objectContaining({ method: "POST" }),
+      );
+    } finally {
+      fetchMock.mockRestore();
+    }
   });
 
   it("retries rate limits and does not sync anything for users without a connection", async () => {

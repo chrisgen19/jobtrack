@@ -146,13 +146,15 @@ export async function suggestTask(
 /**
  * Moves an application to another stage of the same pipeline and logs a
  * STAGE_CHANGED event with name snapshots. Returns false when nothing moved.
+ * `allowClosed` is only for moves the user did not make on that application
+ * (deleting its stage); closed applications otherwise need reopening first.
  */
 export async function changeStageInTx(
   tx: TransactionClient,
   userId: string,
   applicationId: string,
   stageId: string,
-  options: { reason?: string; allowInactiveTarget?: boolean } = {},
+  options: { reason?: string; allowInactiveTarget?: boolean; allowClosed?: boolean } = {},
 ): Promise<boolean> {
   const application = await tx.application.findFirst({
     where: { id: applicationId, userId },
@@ -165,7 +167,7 @@ export async function changeStageInTx(
     },
   });
   if (!application) throw new NotFoundError("Application");
-  if (application.status === "CLOSED")
+  if (application.status === "CLOSED" && !options.allowClosed)
     throw new DomainError("Reopen this application before changing its stage.");
   if (application.stage.id === stageId) return false;
 

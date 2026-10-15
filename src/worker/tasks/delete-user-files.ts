@@ -10,12 +10,13 @@ const payloadSchema = z.object({
 });
 
 /**
- * Removes private document objects after their metadata was deleted (single
- * document deletes that failed, and account deletion). Objects a document row
- * still references are kept and the job fails, so Graphile retries it later:
- * account deletion queues this job before deleting the user, and a failed
- * deletion must never remove files the user still owns. Deleting a missing
- * key succeeds, so retries are safe.
+ * Removes private document objects after their metadata was deleted. The
+ * `documents_queue_file_cleanup` trigger queues this job in the same
+ * transaction as every document delete (single deletes and the account
+ * delete cascade), so it only becomes visible once the rows are gone. Objects
+ * a document row still references are kept anyway and the job fails, so
+ * Graphile retries it later: files the user still owns are never removed.
+ * Deleting a missing key succeeds, so retries are safe.
  */
 export const deleteUserFilesTask: Task = async (rawPayload, helpers) => {
   const parsed = payloadSchema.safeParse(rawPayload);
