@@ -582,10 +582,10 @@ model Application {
   /// user. Date-only like applied_on, so a timezone change never shifts it.
   /// Null = unknown.
   firstResponseOn DateTime?           @map("first_response_on") @db.Date
-  /// Deprecated: the previous noon-instant form of firstResponseOn. Still
-  /// written for the release that introduced firstResponseOn (expand/contract);
-  /// drop in a later release.
-  firstResponseAt DateTime?           @map("first_response_at") @db.Timestamptz(3)
+  /// Retired noon-instant form of firstResponseOn. @ignore keeps it out of the
+  /// client (no code selects it any more) while Migrate still sees the column;
+  /// a later release drops the column and this field.
+  firstResponseAt DateTime?           @map("first_response_at") @ignore @db.Timestamptz(3)
   notes           String?
   createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
