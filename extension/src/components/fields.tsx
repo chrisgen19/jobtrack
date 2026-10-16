@@ -49,10 +49,20 @@ export function TextArea(props: ComponentProps<"textarea">) {
 export function Select({
   options,
   placeholder,
+  invalid,
   ...props
-}: ComponentProps<"select"> & { options: { value: string; label: string }[]; placeholder?: string }) {
+}: ComponentProps<"select"> & {
+  options: { value: string; label: string }[];
+  placeholder?: string;
+  invalid?: boolean;
+}) {
   return (
-    <select className={control} {...props}>
+    <select
+      className={control}
+      aria-invalid={invalid || undefined}
+      aria-describedby={invalid ? `${props.id}-error` : undefined}
+      {...props}
+    >
       {placeholder !== undefined ? <option value="">{placeholder}</option> : null}
       {options.map((option) => (
         <option key={option.value} value={option.value}>

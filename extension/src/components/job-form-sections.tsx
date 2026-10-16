@@ -120,6 +120,7 @@ export function SalarySection({
           placeholder="Not set"
           options={options(SALARY_PERIOD_LABEL)}
           value={values.salaryPeriod}
+          invalid={!!errors.salaryPeriod}
           onChange={(event) => set("salaryPeriod", event.target.value as DraftValues["salaryPeriod"])}
         />
       </Field>
