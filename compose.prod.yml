@@ -50,6 +50,8 @@ services:
       DOCUMENT_MAX_MB: ${DOCUMENT_MAX_MB:-10}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # Chrome extension IDs allowed to connect (comma separated); empty disables it.
+      EXTENSION_IDS: ${EXTENSION_IDS:-}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health/ready > /dev/null || exit 1"]
       interval: 30s

@@ -31,7 +31,11 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 /** Routes without their own nav entry, shown under a parent section. */
-const ALIASES: Record<string, string> = { "/applications": "/jobs", "/notifications": "/dashboard" };
+const ALIASES: Record<string, string> = {
+  "/applications": "/jobs",
+  "/notifications": "/dashboard",
+  "/extension": "/settings",
+};
 
 /**
  * The path the nav treats as current. An intercepted route (the pipeline peek

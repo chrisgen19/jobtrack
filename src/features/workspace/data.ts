@@ -42,15 +42,24 @@ const preferenceSelect = {
  * /onboarding when either is missing. Memoized per request.
  */
 export const requireWorkspace = cache(async (): Promise<Workspace> => {
-  const user = await requireUser();
+  const workspace = await loadWorkspace(await requireUser());
+  if (!workspace) redirect("/onboarding");
+  return workspace;
+});
+
+/**
+ * Workspace for an already authenticated user (session or extension token),
+ * or null when onboarding is not finished. Never redirects.
+ */
+export async function loadWorkspace(user: CurrentUser): Promise<Workspace | null> {
   const preferences = await prisma.userPreferences.findUnique({
     where: { userId: user.id },
     select: preferenceSelect,
   });
-  if (!preferences?.onboardedAt) redirect("/onboarding");
+  if (!preferences?.onboardedAt) return null;
   const { onboardedAt: _onboardedAt, ...rest } = preferences;
   return { user, preferences: rest };
-});
+}
 
 /** Whether the current user has finished onboarding (no redirect). */
 export async function getOnboardingState(): Promise<{ user: CurrentUser; onboarded: boolean }> {

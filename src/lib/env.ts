@@ -120,6 +120,29 @@ export const googleEnv = lazy(() => {
   return { clientId: parsed.GOOGLE_CLIENT_ID, clientSecret: parsed.GOOGLE_CLIENT_SECRET };
 });
 
+/**
+ * Browser extension IDs allowed to receive an extension token from the
+ * connect page (comma separated). Empty means the extension is not set up.
+ */
+export const extensionEnv = lazy(() =>
+  z
+    .object({
+      EXTENSION_IDS: z
+        .string()
+        .optional()
+        .transform((value) =>
+          (value ?? "")
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean),
+        )
+        .pipe(
+          z.array(z.string().regex(/^[a-p]{32}$/, { error: "EXTENSION_IDS must be Chrome extension IDs." })),
+        ),
+    })
+    .parse(process.env),
+);
+
 export const workerEnv = lazy(() =>
   z
     .object({

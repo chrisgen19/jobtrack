@@ -23,5 +23,6 @@ describe("nav items", () => {
     expect(activeNavItem("/applications/abc")?.name).toBe("All Jobs");
     expect(activeNavItem("/notifications")?.name).toBe("Dashboard");
     expect(activeNavItem("/settings/pipeline")?.name).toBe("Settings");
+    expect(activeNavItem("/extension/connect")?.name).toBe("Settings");
   });
 });

@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/settings/pipeline", label: "Pipeline stages" },
   { href: "/settings/notifications", label: "Notifications" },
   { href: "/settings/integrations", label: "Integrations" },
+  { href: "/settings/extension", label: "Browser extension" },
   { href: "/settings/account", label: "Account & data" },
 ];
 

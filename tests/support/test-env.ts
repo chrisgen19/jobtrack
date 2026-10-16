@@ -21,4 +21,6 @@ export const testEnv: Record<string, string> = {
   RESEND_API_KEY: "",
   GOOGLE_CLIENT_ID: "",
   GOOGLE_CLIENT_SECRET: "",
+  // Any well-formed Chrome extension ID; the connect tests use it as the allowlisted one.
+  EXTENSION_IDS: "a".repeat(32),
 };

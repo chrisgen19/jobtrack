@@ -24,7 +24,10 @@
     "worker:start": "tsx src/worker/index.ts",
     "auth:generate": "pnpm dlx auth@1.7.7 generate --config scripts/auth-schema.config.ts --output scripts/auth-models.generated.prisma -y",
     "postinstall": "prisma generate",
-    "postbuild": "cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/"
+    "postbuild": "cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/",
+    "ext:dev": "pnpm --filter @jobtrack/extension dev",
+    "ext:build": "pnpm --filter @jobtrack/extension build",
+    "ext:zip": "pnpm --filter @jobtrack/extension zip"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1150.0",
@@ -33,6 +36,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.9.1",
+    "@jobtrack/shared": "workspace:*",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@tanstack/react-table": "^9.3.1",

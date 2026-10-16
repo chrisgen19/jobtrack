@@ -39,6 +39,8 @@ const nextConfig: NextConfig = {
   // Self-contained server for the Docker image (see Dockerfile).
   output: "standalone",
   poweredByHeader: false,
+  // Workspace package shipped as TypeScript source (packages/shared).
+  transpilePackages: ["@jobtrack/shared"],
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

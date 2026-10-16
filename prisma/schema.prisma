@@ -305,6 +305,7 @@ model User {
   deliveries           NotificationDelivery[]
   calendarConnections  CalendarConnection[]
   calendarEventSyncs   CalendarEventSync[]
+  extensionTokens      ExtensionToken[]
 
   @@unique([email])
   @@map("user")
@@ -982,4 +983,28 @@ model CalendarEventSync {
   @@unique([connectionId, taskId])
   @@index([userId, status])
   @@map("calendar_event_syncs")
+}
+
+// ---------------------------------------------------------------------------
+// Browser extension
+// ---------------------------------------------------------------------------
+
+/// Revocable bearer token for the "Save to JobTrack" browser extension. Only
+/// the SHA-256 hash of the random token is stored; the plaintext is handed to
+/// the extension once. Accepted only by /api/extension/* (save jobs, check
+/// duplicates, read profile and stages), never as a session.
+model ExtensionToken {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  userId     String    @map("user_id")
+  name       String
+  tokenHash  String    @unique @map("token_hash")
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(3)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, id])
+  @@index([userId, createdAt])
+  @@map("extension_tokens")
 }

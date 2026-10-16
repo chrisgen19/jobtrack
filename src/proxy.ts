@@ -30,5 +30,6 @@ export const config = {
     "/contacts/:path*",
     "/notifications/:path*",
     "/settings/:path*",
+    "/extension/:path*",
   ],
 };

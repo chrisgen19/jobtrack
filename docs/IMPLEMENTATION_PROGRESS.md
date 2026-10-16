@@ -170,6 +170,40 @@ Verification:
   connection have not been confirmed yet.
 - Not verified: the GitHub Actions workflow.
 
+## Milestone 7: Browser extension (EXT-01)
+
+- [x] pnpm workspace: web app stays at the root; `packages/shared` (`@jobtrack/shared`, source-only TypeScript,
+      `transpilePackages`) holds the extension API contract; `extension/` is the WXT project. Docker installs with
+      `--filter jobtrack...`, so the images never contain the extension tooling
+- [x] `extension_tokens` table (migration `20261016023813_extension_tokens`): SHA-256 hash only, revocable, last used
+      time, at most 10 active per user
+- [x] Connect flow: `/extension/connect` (approval page) → token for allowlisted IDs (`EXTENSION_IDS`) → handed to
+      the extension via `externally_connectable`, checked against the extension's one-time nonce; revoked again if
+      delivery fails
+- [x] Extension API `/api/extension/v1/{me,opportunities,opportunities/duplicates,token}`: bearer tokens only,
+      per-token rate limit, body size limit, drafts validated with the shared contract and then the Quick Add
+      schema; `createOpportunityForWorkspace` / `findDuplicateCandidatesForUser` reuse the data layer; the
+      duplicate check is a POST with a JSON body so posting URLs stay out of request lines and proxy access logs
+- [x] Settings → Browser extension: connected browsers with last use, Disconnect
+- [x] Extension popup: connect screen, review form prefilled from schema.org `JobPosting`, meta tags and the text
+      selection, duplicate warning, "already applied" with date and stage, saved screen, Disconnect; unsaved edits
+      kept per page for the browser session; generated icons from the brand mark
+- [x] `extension/README.md`, `extension/CHROMEWEBSTORE.md` (store listing draft, permission justifications)
+
+Verification:
+
+- `tests/integration/extension.test.ts` (9 tests): allowlist, hash-only storage, cookie-only and invalid tokens
+  rejected, revoke from Settings and from the extension, cross-user revoke refused, save with activity event, save
+  as applied, field errors, another user's stage refused, owner-scoped duplicates, oversized body.
+- Extension Vitest (9 tests): JSON-LD extraction (nested `@graph`, entity-encoded HTML, salary, remote), meta
+  fallbacks, job boards never used as the company, selection override, connect nonce/origin/once checks.
+- `collectPageSnapshot` + `buildDraft` run in real Chromium on a page with JSON-LD and a text selection.
+- Manual Playwright run of the built extension against `pnpm dev`: register → connect (approval page, token
+  delivered) → save from the popup → duplicate warning → job listed in `/jobs` → disconnect in Settings → popup
+  asks to connect again. Connect and settings pages checked at 390 px.
+- Not verified: opening the popup from the toolbar on a real job site (Playwright cannot click the toolbar, so the
+  `activeTab` grant path was not exercised end to end), Firefox/Edge builds, the CI `extension` job.
+
 ## Definition of Done status
 
 | #   | Step                                                        | Status                                                                   |
