@@ -3,7 +3,7 @@ import type { ExtensionMe, ExtensionSaveResult } from "@jobtrack/shared/extensio
 import { ApiError, saveJob } from "@/lib/api";
 import type { DraftValues, PageStatus } from "@/lib/draft";
 import { firstErrors, toPayload, validateDraft, type FieldErrors } from "@/lib/payload";
-import { removeDraft, saveDraft } from "@/lib/drafts";
+import { flushDraftSave, removeDraft, scheduleDraftSave } from "@/lib/drafts";
 import { DuplicateWarning } from "./duplicate-warning";
 import { Button, Notice } from "./fields";
 import { ApplySection, BasicsSection, DetailsSection, SalarySection } from "./job-form-sections";
@@ -34,8 +34,18 @@ export function JobForm({ me, initial, pageUrl, status, onSaved, onUnauthorized 
   // Keep this page's draft once the user changed something; untouched forms
   // are never stored, so opening the popup elsewhere can't replace a draft.
   useEffect(() => {
-    if (pageUrl && edited) void saveDraft(pageUrl, values);
+    if (pageUrl && edited) scheduleDraftSave(pageUrl, values);
   }, [pageUrl, values, edited]);
+
+  // Writes are batched, so write the last edits when the popup closes or the form goes away.
+  useEffect(() => {
+    const flush = () => void flushDraftSave();
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, []);
 
   const set = <K extends keyof DraftValues>(key: K, value: DraftValues[K]) => {
     setEdited(true);
