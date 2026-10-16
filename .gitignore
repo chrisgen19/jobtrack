@@ -56,3 +56,7 @@ next-env.d.ts
 /blob-report/
 /playwright/.cache/
 /e2e/.auth/
+
+# browser extension build output (WXT)
+extension/.output
+extension/.wxt
