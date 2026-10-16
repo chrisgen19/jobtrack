@@ -1,3 +1,7 @@
+packages:
+  - packages/*
+  - extension
+
 allowBuilds:
   "@prisma/engines": true
   esbuild: true
