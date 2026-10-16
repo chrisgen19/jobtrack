@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { extensionJobDraftSchema, type ExtensionSaveResult } from "@jobtrack/shared/extension-api";
-import { extensionError, extensionJson, readJsonBody, withExtensionAuth } from "@/features/extension/api";
+import {
+  extensionError,
+  extensionJson,
+  readExtensionJson,
+  withExtensionAuth,
+} from "@/features/extension/api";
 import { createOpportunityForWorkspace } from "@/features/opportunities/data";
 import { quickAddSchema } from "@/features/opportunities/schemas";
 import { runAction } from "@/lib/action-result";
@@ -15,7 +20,7 @@ type FieldErrors = Record<string, string[] | undefined>;
  */
 export async function POST(request: Request) {
   return withExtensionAuth(request, async ({ workspace }) => {
-    const body = await readJsonBody(request);
+    const body = await readExtensionJson(request);
     if ("error" in body) return body.error;
 
     const draft = extensionJobDraftSchema.safeParse(body.value);

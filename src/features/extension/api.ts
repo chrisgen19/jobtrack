@@ -1,6 +1,7 @@
 import "server-only";
 import type { ExtensionError } from "@jobtrack/shared/extension-api";
 import { rateLimit } from "@/lib/rate-limit";
+import { readJsonBody } from "@/lib/read-json-body";
 import { authenticateExtensionRequest, type ExtensionAuth } from "./tokens";
 
 /** Requests per token per minute on the extension API. */
@@ -49,39 +50,14 @@ export async function withExtensionAuth(request: Request, handler: AuthorizedHan
   return handler(auth);
 }
 
-/**
- * Reads at most `limit` bytes of the body, chunk by chunk, and cancels the
- * stream once it is larger: chunked requests carry no Content-Length, so the
- * header check alone cannot stop them. Null when the body is too large.
- */
-async function readLimitedText(request: Request, limit: number): Promise<string | null> {
-  if (!request.body) return "";
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > limit) {
-      await reader.cancel();
-      return null;
-    }
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks).toString("utf8");
-}
-
-/** Reads a JSON body up to MAX_EXTENSION_BODY_BYTES; an error response when too large or not JSON. */
-export async function readJsonBody(request: Request): Promise<{ value: unknown } | { error: Response }> {
-  const tooLarge = () => ({ error: extensionError(413, "That job is too large to save.") });
-  // Fast path: reject a declared oversized body without reading it.
-  if (Number(request.headers.get("content-length") ?? 0) > MAX_EXTENSION_BODY_BYTES) return tooLarge();
-  const text = await readLimitedText(request, MAX_EXTENSION_BODY_BYTES);
-  if (text === null) return tooLarge();
-  try {
-    return { value: JSON.parse(text) };
-  } catch {
-    return { error: extensionError(400, "Invalid JSON body.") };
-  }
+/** The request's JSON body (up to MAX_EXTENSION_BODY_BYTES), or the error response to return. */
+export async function readExtensionJson(request: Request): Promise<{ value: unknown } | { error: Response }> {
+  const body = await readJsonBody(request, MAX_EXTENSION_BODY_BYTES);
+  if (body.ok) return { value: body.value };
+  return {
+    error:
+      body.status === 413
+        ? extensionError(413, "That job is too large to save.")
+        : extensionError(400, "Invalid JSON body."),
+  };
 }

@@ -1,5 +1,10 @@
 import { extensionDuplicateQuerySchema, type ExtensionDuplicates } from "@jobtrack/shared/extension-api";
-import { extensionError, extensionJson, readJsonBody, withExtensionAuth } from "@/features/extension/api";
+import {
+  extensionError,
+  extensionJson,
+  readExtensionJson,
+  withExtensionAuth,
+} from "@/features/extension/api";
 import { findDuplicateCandidatesForUser } from "@/features/opportunities/data";
 import { appEnv } from "@/lib/env";
 
@@ -9,7 +14,7 @@ import { appEnv } from "@/lib/env";
  */
 export async function POST(request: Request) {
   return withExtensionAuth(request, async ({ workspace }) => {
-    const body = await readJsonBody(request);
+    const body = await readExtensionJson(request);
     if ("error" in body) return body.error;
     const parsed = extensionDuplicateQuerySchema.safeParse(body.value);
     if (!parsed.success) return extensionError(400, "Invalid duplicate query.");

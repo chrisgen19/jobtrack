@@ -33,15 +33,17 @@ export function DuplicateWarning({ title, companyName, postingUrl, excludeId }: 
     if (!key) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
-      const params = new URLSearchParams();
-      if (hasTitle) {
-        params.set("title", title.trim());
-        params.set("company", companyName.trim());
-      }
-      if (hasUrl) params.set("url", postingUrl.trim());
-      if (excludeId) params.set("exclude", excludeId);
+      // POST, not GET: the posting URL stays out of request lines and access logs.
+      const query = {
+        ...(hasTitle ? { title: title.trim(), company: companyName.trim() } : {}),
+        ...(hasUrl ? { url: postingUrl.trim() } : {}),
+        ...(excludeId ? { exclude: excludeId } : {}),
+      };
       try {
-        const response = await fetch(`/api/opportunities/duplicates?${params}`, {
+        const response = await fetch("/api/opportunities/duplicates", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(query),
           signal: controller.signal,
         });
         if (!response.ok) return;
