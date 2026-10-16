@@ -3,7 +3,7 @@ import type { ExtensionMe, ExtensionSaveResult } from "@jobtrack/shared/extensio
 import { ApiError, saveJob } from "@/lib/api";
 import type { DraftValues, PageStatus } from "@/lib/draft";
 import { firstErrors, toPayload, validateDraft, type FieldErrors } from "@/lib/payload";
-import { draftItem } from "@/lib/storage";
+import { removeDraft, saveDraft } from "@/lib/drafts";
 import { DuplicateWarning } from "./duplicate-warning";
 import { Button, Notice } from "./fields";
 import { ApplySection, BasicsSection, DetailsSection, SalarySection } from "./job-form-sections";
@@ -29,13 +29,18 @@ export function JobForm({ me, initial, pageUrl, status, onSaved, onUnauthorized 
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [edited, setEdited] = useState(false);
 
+  // Keep this page's draft once the user changed something; untouched forms
+  // are never stored, so opening the popup elsewhere can't replace a draft.
   useEffect(() => {
-    if (pageUrl) void draftItem.setValue({ pageUrl, values });
-  }, [pageUrl, values]);
+    if (pageUrl && edited) void saveDraft(pageUrl, values);
+  }, [pageUrl, values, edited]);
 
-  const set = <K extends keyof DraftValues>(key: K, value: DraftValues[K]) =>
+  const set = <K extends keyof DraftValues>(key: K, value: DraftValues[K]) => {
+    setEdited(true);
     setValues((current) => ({ ...current, [key]: value }));
+  };
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -46,7 +51,7 @@ export function JobForm({ me, initial, pageUrl, status, onSaved, onUnauthorized 
     setSaving(true);
     try {
       const result = await saveJob(toPayload(values));
-      await draftItem.removeValue();
+      if (pageUrl) await removeDraft(pageUrl);
       onSaved(result, values.title);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) return onUnauthorized(error.message);

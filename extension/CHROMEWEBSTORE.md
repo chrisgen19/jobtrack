@@ -49,7 +49,7 @@ Privacy: the extension reads a page only when you open it on that page. It then 
 | ------------------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `activeTab`                          | permissions      | Reads the job posting on the current tab, only after the user opens the extension on it, to prefill the save form.              |
 | `scripting`                          | permissions      | Runs a one-time reader on that tab to collect the posting's title, company and description; nothing stays injected in the page. |
-| `storage`                            | permissions      | Keeps the user's connection token on the device, plus the unsaved form for the current page until the browser closes.           |
+| `storage`                            | permissions      | Keeps the user's connection token on the device, plus unsaved forms for recently viewed postings until the browser closes.      |
 | `https://<jobtrack server>/*`        | host_permissions | Sends the job the user chose to save to their own JobTrack account. No other site is contacted.                                 |
 | `externally_connectable` (same host) | manifest         | Lets the user's JobTrack account page hand the connection token to the extension after the user approves it.                    |
 

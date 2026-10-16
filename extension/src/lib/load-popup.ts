@@ -3,7 +3,8 @@ import { ApiError, getMe } from "./api";
 import { emptyDraft, type DraftValues, type PageStatus } from "./draft";
 import { buildDraft } from "./extract/build-draft";
 import { readActivePage } from "./page";
-import { draftItem, tokenItem } from "./storage";
+import { loadDraft } from "./drafts";
+import { tokenItem } from "./storage";
 
 export type PopupView =
   | { kind: "loading" }
@@ -19,9 +20,10 @@ export type PopupView =
 export async function loadPopup(): Promise<PopupView> {
   if (!(await tokenItem.getValue())) return { kind: "connect" };
   try {
-    const [me, snapshot, saved] = await Promise.all([getMe(), readActivePage(), draftItem.getValue()]);
+    const [me, snapshot] = await Promise.all([getMe(), readActivePage()]);
     const built = snapshot ? buildDraft(snapshot) : null;
     const pageUrl = snapshot?.url ?? null;
+    const saved = pageUrl ? await loadDraft(pageUrl) : null;
     const defaults: DraftValues = {
       ...(built?.draft ?? emptyDraft()),
       appliedOn: me.today,
@@ -31,7 +33,7 @@ export async function loadPopup(): Promise<PopupView> {
       kind: "form",
       me,
       pageUrl,
-      initial: saved && pageUrl && saved.pageUrl === pageUrl ? saved.values : defaults,
+      initial: saved ?? defaults,
       status: !built ? "unreadable" : built.foundJobPosting ? "found" : "partial",
     };
   } catch (error) {

@@ -10,10 +10,8 @@ export const pendingConnectItem = storage.defineItem<{ state: string; createdAt:
   { fallback: null },
 );
 
-/** Unsaved review form, so closing the popup by accident keeps the edits for that page. */
-export const draftItem = storage.defineItem<{ pageUrl: string; values: DraftValues } | null>(
-  "session:draft",
-  {
-    fallback: null,
-  },
+/** Unsaved review forms by page URL (session: cleared when the browser closes). See drafts.ts. */
+export const draftsItem = storage.defineItem<Record<string, { values: DraftValues; updatedAt: number }>>(
+  "session:drafts",
+  { fallback: {} },
 );

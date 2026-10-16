@@ -7,7 +7,8 @@ review form, then saves only when you click **Save job**.
   it), falling back to the page's meta tags and title. Text you highlight on the page becomes the description.
 - **Duplicates:** warns when you already saved the same posting link, or the same title at the same company.
 - **Already applied:** optionally records the application with its date and pipeline stage.
-- Unsaved edits are kept for that page until the browser closes, so closing the popup by accident loses nothing.
+- Unsaved edits are kept per page (the 20 most recently edited) until the browser closes, so closing the popup by
+  accident, or opening it on another posting in between, loses nothing.
 
 Built with [WXT](https://wxt.dev) (Manifest V3), React and Tailwind CSS v4. It shares the API contract with the web
 app through `packages/shared` (`@jobtrack/shared/extension-api`).
@@ -73,7 +74,7 @@ token on the server too. A revoked token returns 401 and the popup asks to conne
 | ---------------------------- | ------------------------------------------------------------------------------------- |
 | `activeTab`                  | Read the current page, only after the user opens the popup on it                      |
 | `scripting`                  | Run the one-off reader on that page (no persistent content scripts)                   |
-| `storage`                    | Keep the token (local) and the connect nonce and unsaved draft (session)              |
+| `storage`                    | Keep the token (local) and the connect nonce and unsaved drafts (session)              |
 | host `<WXT_JOBTRACK_URL>/*`  | Call the JobTrack API; no other site is reachable                                     |
 | `externally_connectable`     | Let the JobTrack connect page, and no other site, hand over the token                 |
 
