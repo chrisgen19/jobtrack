@@ -154,8 +154,21 @@ Verification:
   queued email job, refused to send without `RESEND_API_KEY` in production (permanent failure, no retry loop) and
   shut down gracefully on SIGTERM.
 - Full Playwright suite (10 specs incl. `definition-of-done.spec.ts`, the 14-step workflow with isolation).
-- Not verified: an actual Coolify deployment, real R2, Resend and Google credentials (none available here), and the
-  GitHub Actions workflow (not pushed).
+- Coolify production deployment (2026-10-16) at `https://jobs.cgdev.site`: Docker Compose build pack with
+  `compose.prod.yml`, `jobtrack` role and database on the shared Coolify PostgreSQL 17 (internal network). `migrate`
+  exited 0, `web` and `worker` healthy, `/api/health` = ok, `/api/health/ready` = ready, Let's Encrypt HTTPS with
+  http redirect, worker log `worker started`. A redeploy (env change) also succeeded.
+- Real Resend: registering an account on production delivered the verification email.
+- Resend webhook (2026-10-16): endpoint `https://jobs.cgdev.site/api/webhooks/resend` registered in Resend for
+  `email.bounced` and `email.complained`, signing secret set as `RESEND_WEBHOOK_SECRET` (runtime only). After the
+  redeploy the endpoint rejected an unsigned request, a wrong signature and a correctly signed request with a
+  10-minute-old timestamp (all 401), and accepted a correctly signed `email.bounced` (200, logged
+  `handled: false` for the unknown `email_id`, no data changed). A real bounce delivered by Resend has not been
+  tested yet. The Resend account is shared with other apps, so their bounce events also arrive here and are
+  ignored the same way.
+- R2 and Google OAuth credentials are configured in production; a document round trip and a Google Calendar
+  connection have not been confirmed yet.
+- Not verified: the GitHub Actions workflow.
 
 ## Definition of Done status
 
