@@ -1,8 +1,10 @@
 import { betterAuth } from "better-auth";
+import { createAuthMiddleware, isAPIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { randomUUID } from "node:crypto";
 import { afterAccountDelete, beforeAccountDelete } from "@/features/account/deletion";
+import { revokeAllExtensionTokensForUser } from "@/features/extension/revoke";
 import { existingAccountEmail, resetPasswordEmail, verificationEmail } from "@/lib/email/templates";
 import { appEnv, authEnv } from "@/lib/env";
 import { enqueueJob } from "@/lib/jobs/queue";
@@ -49,6 +51,10 @@ export function createAuth() {
       minPasswordLength: 10,
       maxPasswordLength: 128,
       revokeSessionsOnPasswordReset: true,
+      // Sessions are revoked above; browser extension tokens live in their own table.
+      onPasswordReset: async ({ user }) => {
+        await revokeAllExtensionTokensForUser(user.id);
+      },
       resetPasswordTokenExpiresIn: 60 * 60,
       sendResetPassword: async ({ user, url }) => {
         await queueAuthEmail("reset", user.email, resetPasswordEmail(user.name, url));
@@ -100,6 +106,17 @@ export function createAuth() {
     advanced: {
       useSecureCookies: isProduction,
       ipAddress: { ipAddressHeaders: [env.TRUSTED_IP_HEADER] },
+    },
+    hooks: {
+      // Changing the password with "sign out other sessions" also disconnects
+      // browser extensions. Runs only when the change succeeded.
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/change-password" || ctx.body?.revokeOtherSessions !== true) return;
+        const returned = ctx.context.returned;
+        if (!returned || isAPIError(returned)) return;
+        const userId = (returned as { user?: { id?: unknown } }).user?.id;
+        if (typeof userId === "string") await revokeAllExtensionTokensForUser(userId);
+      }),
     },
     // nextCookies must stay last so Server Actions can set auth cookies.
     plugins: [nextCookies()],
