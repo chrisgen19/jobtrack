@@ -21,4 +21,6 @@ export const testEnv: Record<string, string> = {
   RESEND_API_KEY: "",
   GOOGLE_CLIENT_ID: "",
   GOOGLE_CLIENT_SECRET: "",
+  // Stable unpacked ID of the extension built with extension/.env.example.
+  EXTENSION_IDS: "a".repeat(32),
 };

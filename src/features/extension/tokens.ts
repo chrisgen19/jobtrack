@@ -15,17 +15,22 @@ const LAST_USED_RESOLUTION_MS = 5 * 60 * 1000;
 const TOKEN_PATTERN = new RegExp(`^${EXTENSION_TOKEN_PREFIX}[A-Za-z0-9_-]{43}$`);
 
 /** SHA-256 (hex) of a token; tokens have 256 random bits, so no slow hash is needed. */
-export const hashExtensionToken = (token: string): string =>
-  createHash("sha256").update(token).digest("hex");
+export const hashExtensionToken = (token: string): string => createHash("sha256").update(token).digest("hex");
 
 /**
- * Creates a token for the user and returns the plaintext, which is never
- * stored or logged. Revokes the oldest active tokens past the per-user cap.
+ * Creates a token for the user and returns its ID and plaintext; the
+ * plaintext is never stored or logged. Revokes the oldest active tokens past the per-user cap.
  */
-export async function issueExtensionToken(userId: string, name: string): Promise<string> {
+export async function issueExtensionToken(
+  userId: string,
+  name: string,
+): Promise<{ id: string; token: string }> {
   const token = `${EXTENSION_TOKEN_PREFIX}${randomBytes(32).toString("base64url")}`;
-  await prisma.$transaction(async (tx) => {
-    await tx.extensionToken.create({ data: { userId, name, tokenHash: hashExtensionToken(token) } });
+  const id = await prisma.$transaction(async (tx) => {
+    const created = await tx.extensionToken.create({
+      data: { userId, name, tokenHash: hashExtensionToken(token) },
+      select: { id: true },
+    });
     const stale = await tx.extensionToken.findMany({
       where: { userId, revokedAt: null },
       orderBy: { createdAt: "desc" },
@@ -38,8 +43,9 @@ export async function issueExtensionToken(userId: string, name: string): Promise
         data: { revokedAt: new Date() },
       });
     }
+    return created.id;
   });
-  return token;
+  return { id, token };
 }
 
 export type ExtensionAuth =
