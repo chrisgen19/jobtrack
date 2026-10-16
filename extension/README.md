@@ -61,7 +61,7 @@ Icons are generated from the brand mark with `node extension/scripts/generate-ic
    `externally_connectable` for the server origin only). The background worker accepts it only from the configured
    origin and only with the pending nonce, once, within 10 minutes. If delivery fails, the page revokes the token.
 4. The popup calls `/api/extension/v1/*` with `Authorization: Bearer <token>`. The token can save jobs, check for
-   duplicates and read the user's name, currency and pipeline stages, nothing else. Session cookies are never sent
+   duplicates and read the user's name, email, currency and pipeline stages, nothing else. Session cookies are never sent
    (`credentials: "omit"`) or accepted there.
 
 Users see and revoke connections under **Settings → Browser extension**. **Disconnect** in the popup revokes the

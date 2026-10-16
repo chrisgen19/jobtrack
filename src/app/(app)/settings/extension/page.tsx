@@ -19,9 +19,10 @@ export default function ExtensionSettingsPage() {
         <Connections />
       </Suspense>
       <p className="mt-4 rounded-[9px] bg-[#f4f7f2] px-3.5 py-3 text-[11px] leading-relaxed text-[#829082]">
-        Privacy: the extension reads a page only when you open it on that page, and sends nothing until you
-        review the details and click Save. It can save jobs and check for duplicates, but can&apos;t read the
-        rest of your workspace.
+        Privacy: the extension reads a page only when you open it on that page. It then checks the
+        posting&apos;s link, title and company against your saved jobs, and saves nothing until you review the
+        details and click Save. It can save jobs and check for duplicates, but can&apos;t read the rest of
+        your workspace.
       </p>
     </SettingsCard>
   );

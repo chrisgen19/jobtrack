@@ -92,7 +92,7 @@ export function ConnectExtension({ ext, state }: { ext: string; state: string })
           <ul className="mt-1 list-disc pl-4 text-[#73827a]">
             <li>save jobs you review in the extension</li>
             <li>check whether you already saved a job</li>
-            <li>read your name, default currency and pipeline stages</li>
+            <li>read your name, email, default currency and pipeline stages</li>
           </ul>
           <p className="mt-2 text-[#91a096]">
             It can&apos;t read or change anything else. You can disconnect it any time in Settings.

@@ -1,6 +1,6 @@
 # Chrome Web Store Listing: Save to JobTrack
 
-> Last Updated: 2026-10-16. Status: not submitted (distributed as an unpacked build for now).
+> Last Updated: 2026-10-16 (privacy disclosures corrected). Status: not submitted (distributed as an unpacked build for now).
 
 ## Store Listing
 
@@ -20,7 +20,7 @@ How to use it:
 2. Open a job posting on any site.
 3. Click the extension, check the details and click Save job.
 
-Privacy: the extension reads a page only when you open it on that page, and sends nothing until you click Save job. It talks only to your JobTrack server. You can disconnect it any time from the extension or from JobTrack's settings.
+Privacy: the extension reads a page only when you open it on that page. It then checks the posting's link, title and company against your saved jobs, and saves nothing until you click Save job. It talks only to your JobTrack server. You can disconnect it any time from the extension or from JobTrack's settings.
 
 **Category:** Productivity
 
@@ -55,15 +55,15 @@ Privacy: the extension reads a page only when you open it on that page, and send
 
 ## Privacy & Data Use
 
-**Does the extension collect user data?** Yes, only what the user saves.
+**Does the extension collect user data?** Yes: the job details it reads from the page (sent to the user's own JobTrack server for the duplicate check and, on Save, to store the job) and the user's name and email (received from JobTrack and shown in the popup).
 
-| Data Type                    | Collected? | Transmitted Off-Device? | Purpose                                 | Shared with Third Parties? |
-| ---------------------------- | ---------- | ----------------------- | --------------------------------------- | -------------------------- |
-| Personally identifiable info | No         | No                      |                                         | No                         |
-| Authentication info          | Yes        | Yes (to JobTrack only)  | Connection token that authorizes saving | No                         |
-| Website content              | Yes        | Yes (to JobTrack only)  | Job details the user reviewed and saved | No                         |
-| Web history                  | Yes        | Yes (to JobTrack only)  | The saved posting's URL                 | No                         |
-| Other categories             | No         | No                      |                                         | No                         |
+| Data Type                    | Collected? | Transmitted Off-Device?                        | Purpose                                                                                          | Shared with Third Parties? |
+| ---------------------------- | ---------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------- |
+| Personally identifiable info | Yes        | No (received from JobTrack, not sent anywhere) | Shows which JobTrack account the job is saved to (name and email, not stored by the extension)   | No                         |
+| Authentication info          | Yes        | Yes (to JobTrack only)                         | Connection token that authorizes saving                                                          | No                         |
+| Website content              | Yes        | Yes (to JobTrack only)                         | Job details from the open page: checked for duplicates when the popup opens, stored only on Save | No                         |
+| Web history                  | Yes        | Yes (to JobTrack only)                         | The open posting's URL: duplicate check, and saved with the job on Save                          | No                         |
+| Other categories             | No         | No                                             |                                                                                                  | No                         |
 
 - [x] Data is NOT sold to third parties
 - [x] Data is NOT used for purposes unrelated to the extension's core functionality
