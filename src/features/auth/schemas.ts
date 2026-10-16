@@ -41,8 +41,17 @@ export type RegisterValues = z.infer<typeof registerSchema>;
 export type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>;
 
-/** Only allow same-origin relative redirects ("/jobs"), never "//evil.com". */
+const REDIRECT_BASE = "https://jobtrack.invalid";
+
+/**
+ * Only allow same-origin relative redirects ("/jobs"), never "//evil.com".
+ * Browsers strip tabs and newlines and treat "\" like "/" while parsing, so
+ * "/\t/evil.com" would become "//evil.com". Those characters are rejected,
+ * and the value must still resolve to our own origin.
+ */
 export function safeRedirectPath(value: string | null | undefined, fallback = "/dashboard"): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return fallback;
-  return value;
+  if (!value || !value.startsWith("/") || /[\s\\]/.test(value)) return fallback;
+  const url = new URL(value, REDIRECT_BASE);
+  if (url.origin !== REDIRECT_BASE) return fallback;
+  return `${url.pathname}${url.search}${url.hash}`;
 }
