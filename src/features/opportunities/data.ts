@@ -15,7 +15,7 @@ import { beforeSourcesDeleted, sourcesUnder } from "@/features/integrations/side
 import { submitApplicationInTx } from "@/features/applications/service";
 import { findOrCreateCompany } from "@/features/companies/data";
 import { normalizeCompanyName } from "@/features/companies/normalize";
-import { requireWorkspace } from "@/features/workspace/data";
+import { requireWorkspace, type Workspace } from "@/features/workspace/data";
 import { NotFoundError } from "@/lib/action-result";
 import { parseDateOnly, todayInTimeZone, toDateOnly, toDateOnlyOrNull } from "@/lib/dates";
 import { decimalToString } from "@/lib/money";
@@ -330,7 +330,14 @@ async function setTags(
 export async function createOpportunity(
   input: QuickAddInput,
 ): Promise<{ id: string; applicationId: string | null }> {
-  const { user, preferences } = await requireWorkspace();
+  return createOpportunityForWorkspace(await requireWorkspace(), input);
+}
+
+/** createOpportunity for a workspace the caller already authenticated (extension API). */
+export async function createOpportunityForWorkspace(
+  { user, preferences }: Workspace,
+  input: QuickAddInput,
+): Promise<{ id: string; applicationId: string | null }> {
   return prisma.$transaction(async (tx) => {
     const companyId = await findOrCreateCompany(tx, user.id, input.companyName);
     const opportunity = await tx.jobOpportunity.create({
@@ -440,18 +447,27 @@ export type DuplicateCandidate = {
   reason: "url" | "title";
 };
 
+export type DuplicateQuery = {
+  title?: string;
+  companyName?: string;
+  postingUrl?: string;
+  excludeId?: string;
+};
+
 /**
  * Possible duplicates of a job being saved: same normalized posting URL, or
  * the same company with the same (normalized) title. Advisory only; saving
  * and reapplying are never blocked.
  */
-export async function findDuplicateCandidates(params: {
-  title?: string;
-  companyName?: string;
-  postingUrl?: string;
-  excludeId?: string;
-}): Promise<DuplicateCandidate[]> {
-  const { user } = await requireWorkspace();
+export async function findDuplicateCandidates(params: DuplicateQuery): Promise<DuplicateCandidate[]> {
+  return findDuplicateCandidatesForUser((await requireWorkspace()).user.id, params);
+}
+
+/** findDuplicateCandidates for a user the caller already authenticated (extension API). */
+export async function findDuplicateCandidatesForUser(
+  userId: string,
+  params: DuplicateQuery,
+): Promise<DuplicateCandidate[]> {
   const normalizedUrl = normalizePostingUrl(params.postingUrl);
   const title = params.title ? normalizeTitle(params.title) : "";
   const companyKey = params.companyName ? normalizeCompanyName(params.companyName) : "";
@@ -462,7 +478,7 @@ export async function findDuplicateCandidates(params: {
   if (or.length === 0) return [];
 
   const rows = await prisma.jobOpportunity.findMany({
-    where: { userId: user.id, OR: or, ...(params.excludeId ? { id: { not: params.excludeId } } : {}) },
+    where: { userId, OR: or, ...(params.excludeId ? { id: { not: params.excludeId } } : {}) },
     take: 20,
     orderBy: { createdAt: "desc" },
     select: {
