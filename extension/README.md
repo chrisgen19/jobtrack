@@ -17,6 +17,7 @@ app through `packages/shared` (`@jobtrack/shared/extension-api`).
 ```bash
 pnpm install                      # from the repo root (installs every workspace package)
 cp extension/.env.example extension/.env
+pnpm --filter @jobtrack/extension typecheck   # also generates extension/.wxt (types for the editor)
 ```
 
 `extension/.env`:
