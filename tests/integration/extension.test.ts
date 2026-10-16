@@ -195,6 +195,29 @@ describe("extension API", () => {
     expect(((await otherHits.json()) as { candidates: unknown[] }).candidates).toHaveLength(0);
   });
 
+  it("stops reading a chunked body without Content-Length once it passes the limit", async () => {
+    const { token } = await connectedUser();
+    const chunk = new TextEncoder().encode("x".repeat(16 * 1024));
+    let pulled = 0;
+    // Endless stream: the test only finishes if the handler cancels it.
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        controller.enqueue(chunk);
+      },
+    });
+    const response = await postOpportunity(
+      request("/opportunities", token, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+        duplex: "half",
+      } as RequestInit),
+    );
+    expect(response.status).toBe(413);
+    expect(pulled).toBeLessThan(20);
+  });
+
   it("rejects oversized bodies", async () => {
     const { token } = await connectedUser();
     const response = await postOpportunity(
