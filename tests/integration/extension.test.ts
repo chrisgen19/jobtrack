@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as getMe } from "@/app/api/extension/v1/me/route";
-import { GET as getDuplicates } from "@/app/api/extension/v1/opportunities/duplicates/route";
+import * as duplicatesRoute from "@/app/api/extension/v1/opportunities/duplicates/route";
 import { POST as postOpportunity } from "@/app/api/extension/v1/opportunities/route";
 import { DELETE as deleteToken } from "@/app/api/extension/v1/token/route";
 import { approveExtensionConnectAction, revokeExtensionTokenAction } from "@/features/extension/actions";
@@ -48,7 +48,11 @@ function saveRequest(token: string, body: unknown) {
 }
 
 function duplicatesRequest(token: string, query: Record<string, string>) {
-  return request(`/opportunities/duplicates?${new URLSearchParams(query)}`, token);
+  return request("/opportunities/duplicates", token, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(query),
+  });
 }
 
 describe("extension connect and tokens", () => {
@@ -184,15 +188,22 @@ describe("extension API", () => {
     const job = { title: "Data Analyst", companyName: "Umbrella", postingUrl: "https://example.com/jobs/42" };
     expect((await postOpportunity(saveRequest(owner.token, job))).status).toBe(201);
 
-    const ownHits = await getDuplicates(
+    const ownHits = await duplicatesRoute.POST(
       duplicatesRequest(owner.token, { url: "https://example.com/jobs/42?ref=feed" }),
     );
     expect(((await ownHits.json()) as { candidates: unknown[] }).candidates).toHaveLength(1);
 
-    const otherHits = await getDuplicates(
+    const otherHits = await duplicatesRoute.POST(
       duplicatesRequest(other.token, { url: job.postingUrl, title: job.title, company: job.companyName }),
     );
     expect(((await otherHits.json()) as { candidates: unknown[] }).candidates).toHaveLength(0);
+  });
+
+  it("checks duplicates by POST only, so posting URLs never travel in the query string", async () => {
+    expect("GET" in duplicatesRoute).toBe(false);
+    const { token } = await connectedUser();
+    const invalid = await duplicatesRoute.POST(duplicatesRequest(token, { url: "x".repeat(3000) }));
+    expect(invalid.status).toBe(400);
   });
 
   it("stops reading a chunked body without Content-Length once it passes the limit", async () => {

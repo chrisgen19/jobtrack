@@ -75,6 +75,18 @@ export const extensionSaveResultSchema = z.object({
 
 export type ExtensionSaveResult = z.infer<typeof extensionSaveResultSchema>;
 
+/**
+ * Body of POST /opportunities/duplicates. A JSON body rather than query
+ * parameters keeps the posting URL out of proxy access logs.
+ */
+export const extensionDuplicateQuerySchema = z.object({
+  url: z.string().max(2048).optional(),
+  title: z.string().max(160).optional(),
+  company: z.string().max(120).optional(),
+});
+
+export type ExtensionDuplicateQuery = z.input<typeof extensionDuplicateQuerySchema>;
+
 export const extensionDuplicatesSchema = z.object({
   candidates: z.array(
     z.object({

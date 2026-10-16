@@ -4,6 +4,7 @@ import {
   extensionErrorSchema,
   extensionMeSchema,
   extensionSaveResultSchema,
+  type ExtensionDuplicateQuery,
   type ExtensionError,
   type ExtensionJobDraft,
 } from "@jobtrack/shared/extension-api";
@@ -46,11 +47,13 @@ async function call<T>(path: string, schema: z.ZodType<T>, init: RequestInit = {
 
 export const getMe = () => call("/me", extensionMeSchema);
 
-export const findDuplicates = (query: { url?: string; title?: string; company?: string }) =>
-  call(
-    `/opportunities/duplicates?${new URLSearchParams(Object.entries(query).filter(([, value]) => value))}`,
-    extensionDuplicatesSchema,
-  );
+/** POST, not GET: the posting URL stays out of request lines and proxy access logs. */
+export const findDuplicates = (query: ExtensionDuplicateQuery) =>
+  call("/opportunities/duplicates", extensionDuplicatesSchema, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(Object.fromEntries(Object.entries(query).filter(([, value]) => value))),
+  });
 
 export const saveJob = (draft: ExtensionJobDraft) =>
   call("/opportunities", extensionSaveResultSchema, {

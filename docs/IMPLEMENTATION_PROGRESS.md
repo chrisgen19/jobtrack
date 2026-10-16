@@ -182,7 +182,8 @@ Verification:
       delivery fails
 - [x] Extension API `/api/extension/v1/{me,opportunities,opportunities/duplicates,token}`: bearer tokens only,
       per-token rate limit, body size limit, drafts validated with the shared contract and then the Quick Add
-      schema; `createOpportunityForWorkspace` / `findDuplicateCandidatesForUser` reuse the data layer
+      schema; `createOpportunityForWorkspace` / `findDuplicateCandidatesForUser` reuse the data layer; the
+      duplicate check is a POST with a JSON body so posting URLs stay out of request lines and proxy access logs
 - [x] Settings → Browser extension: connected browsers with last use, Disconnect
 - [x] Extension popup: connect screen, review form prefilled from schema.org `JobPosting`, meta tags and the text
       selection, duplicate warning, "already applied" with date and stage, saved screen, Disconnect; unsaved edits
