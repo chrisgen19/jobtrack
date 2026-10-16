@@ -16,12 +16,16 @@ ENV PNPM_HOME=/pnpm \
 RUN apk add --no-cache libc6-compat && npm install -g pnpm@11.17.0
 WORKDIR /app
 
-# All dependencies (build tooling, Prisma CLI). postinstall generates the
-# Prisma client into src/generated.
+# All dependencies of the web app (build tooling, Prisma CLI) and the
+# workspace packages it uses; `--filter jobtrack...` skips the browser
+# extension's tooling. postinstall generates the Prisma client into
+# src/generated. Every workspace manifest is copied so the lockfile matches.
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml prisma.config.ts ./
+COPY packages/shared ./packages/shared
+COPY extension/package.json ./extension/
 COPY prisma ./prisma
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile --filter jobtrack...
 
 FROM deps AS build
 COPY . .
@@ -32,7 +36,9 @@ RUN pnpm build
 # client is copied from the build stage instead of regenerated).
 FROM base AS prod-deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile --prod --ignore-scripts
+COPY packages/shared/package.json ./packages/shared/
+COPY extension/package.json ./extension/
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile --prod --ignore-scripts --filter jobtrack...
 
 FROM ${NODE_IMAGE} AS web
 ENV NODE_ENV=production \

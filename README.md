@@ -16,7 +16,8 @@ The UI is rebuilt from the original prototype in `references/job-tracker-demo.ht
 - **Auth:** Better Auth (email + password, verification, reset, rate limiting) with the Prisma adapter
 - **Background jobs:** Graphile Worker in a separate process (reminders, email, calendar sync, file cleanup)
 - **Integrations:** Resend (email), Cloudflare R2 / S3 (private documents), Google Calendar (one-way sync)
-- **Tooling:** pnpm, ESLint, Prettier, Vitest, Playwright, Docker, Coolify
+- **Browser extension:** "Save to JobTrack" for Chrome (WXT, Manifest V3, React), in `extension/`
+- **Tooling:** pnpm workspaces, ESLint, Prettier, Vitest, Playwright, Docker, Coolify
 
 ## Local development
 
@@ -33,6 +34,9 @@ pnpm db:seed                    # optional demo data (demo@jobtrack.local / jobt
 pnpm dev                        # http://localhost:3000
 pnpm worker:dev                 # second terminal: background worker
 ```
+
+To try the browser extension locally, add `EXTENSION_IDS=pdpigjppeaoehfopmcgfdofienlhjjmh` to `.env` and follow
+`extension/README.md`.
 
 Without `RESEND_API_KEY`, emails (verification, reset, reminders) are written to `.data/dev-mail/*.json`; open the
 newest file to follow the verification link. Without R2 credentials documents are stored under `.data/uploads`
@@ -53,6 +57,7 @@ newest file to follow the verification link. Without R2 credentials documents ar
 | `pnpm db:seed` | Demo data (refuses in production unless `ALLOW_DEMO_SEED=true`) |
 | `pnpm db:mock <email> [--reset]` | Fills your own registered local account with mock data covering every scenario and label (local databases only; `--reset` replaces that account's data) |
 | `pnpm auth:generate` | Regenerate Better Auth models with the official CLI |
+| `pnpm ext:dev` / `pnpm ext:build` / `pnpm ext:zip` | Browser extension dev build / production build / store zip (see `extension/README.md`) |
 
 ## Project structure
 
@@ -68,7 +73,12 @@ src/
   worker/               Graphile Worker entry + tasks
 prisma/                 schema.prisma, migrations/, seed.ts
 e2e/                    Playwright specs     tests/   Vitest integration tests + helpers
+packages/shared/        @jobtrack/shared: code shared with the extension (extension API contract)
+extension/              @jobtrack/extension: "Save to JobTrack" Chrome extension (WXT)
 ```
+
+The repository is a pnpm workspace: the web app stays at the root, so the Docker and Coolify setup is unchanged
+apart from copying the workspace manifests. The extension is not part of the Docker images.
 
 Key rules: every Prisma call goes through a feature's `data.ts`, which takes the user from the session and scopes
 every query; Server Actions validate with Zod and never accept owner IDs; side effects (reminders, calendar sync)

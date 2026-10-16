@@ -102,6 +102,7 @@ URL valid for 60 seconds. The browser talks to R2 only for that redirect.
    | `RESEND_API_KEY`, `EMAIL_FROM`, `RESEND_WEBHOOK_SECRET`                   | see step 4                                                                     |
    | `S3_*`                                                                    | see step 3                                                                     |
    | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                | optional                                                                       |
+   | `EXTENSION_IDS`                                                           | optional: Chrome extension IDs allowed to connect, comma separated (step 10)   |
    | `WEB_DATABASE_POOL_MAX`, `WORKER_DATABASE_POOL_MAX`, `WORKER_CONCURRENCY` | defaults 10 / 7 / 5                                                            |
 
    Mark secrets as **secret** in Coolify so they are hidden in the UI and logs. Never commit `.env` files.
@@ -163,3 +164,17 @@ pnpm prisma migrate diff --from-config-datasource --to-schema prisma/schema.pris
 - [ ] `RESEND_WEBHOOK_SECRET` set if the webhook is enabled
 - [ ] Backups scheduled to off-server storage and a restore tested (see backup guide)
 - [ ] `TRUSTED_IP_HEADER` matches your proxy so auth rate limits see real client IPs
+
+## 10. Browser extension (optional)
+
+The "Save to JobTrack" Chrome extension (`extension/`, see `extension/README.md`) talks only to the server it was
+built for, and the connect page hands tokens only to extension IDs listed in `EXTENSION_IDS`.
+
+1. Build it for this server: in `extension/.env` set `WXT_JOBTRACK_URL=https://jobs.example.com`, then
+   `pnpm ext:build` (or `pnpm ext:zip`).
+2. Add its ID to `EXTENSION_IDS` on the Coolify resource and redeploy:
+   - unpacked build with the committed dev key: `pdpigjppeaoehfopmcgfdofienlhjjmh` (`pnpm --filter
+@jobtrack/extension extension-id` prints the ID for any key);
+   - Chrome Web Store build: leave `WXT_EXTENSION_KEY` empty and use the ID the store assigns.
+3. Users connect from the extension and can disconnect under **Settings → Browser extension**. Removing an ID from
+   `EXTENSION_IDS` stops new connections only; revoke existing ones there or delete rows from `extension_tokens`.

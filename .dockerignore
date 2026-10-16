@@ -1,12 +1,15 @@
 # Never send secrets, local data or build output to the Docker daemon.
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
 .git
 .github
 .next
 .data
 node_modules
+**/node_modules
 src/generated
 dist
 coverage
@@ -21,3 +24,7 @@ docs
 .idea
 Dockerfile
 compose*.yml
+
+# Browser extension: only its manifest (the lockfile lists it as a workspace project).
+extension/*
+!extension/package.json

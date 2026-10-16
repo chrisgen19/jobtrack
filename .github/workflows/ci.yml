@@ -78,6 +78,23 @@ jobs:
           path: playwright-report
           retention-days: 7
 
+  extension:
+    name: Browser extension typecheck, tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The dev .env.example points at localhost, which is all a CI build needs.
+      - run: cp extension/.env.example extension/.env
+      - run: pnpm --filter @jobtrack/extension typecheck
+      - run: pnpm --filter @jobtrack/extension test
+      - run: pnpm ext:build
+
   docker:
     name: Docker images build
     runs-on: ubuntu-latest
