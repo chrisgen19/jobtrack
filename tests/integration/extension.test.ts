@@ -4,6 +4,7 @@ import * as duplicatesRoute from "@/app/api/extension/v1/opportunities/duplicate
 import { POST as postOpportunity } from "@/app/api/extension/v1/opportunities/route";
 import { DELETE as deleteToken } from "@/app/api/extension/v1/token/route";
 import { approveExtensionConnectAction, revokeExtensionTokenAction } from "@/features/extension/actions";
+import { IP_REQUESTS_PER_MINUTE } from "@/features/extension/api";
 import { hashExtensionToken, issueExtensionToken, listExtensionTokens } from "@/features/extension/tokens";
 import { getOpportunityDetail } from "@/features/opportunities/data";
 import { completeOnboarding } from "@/features/workspace/data";
@@ -94,6 +95,26 @@ describe("extension connect and tokens", () => {
     const second = await issueExtensionToken(user.id, "Chrome extension");
     expect((await deleteToken(request("/token", second.token, { method: "DELETE" }))).status).toBe(204);
     expect((await getMe(request("/me", second.token))).status).toBe(401);
+  });
+
+  it("limits requests per IP before the token lookup, so bogus tokens cannot flood the database", async () => {
+    const { token } = await connectedUser();
+    const bogus = `jt_ext_${"x".repeat(43)}`;
+    const from = (ip: string, bearer: string) => request("/me", bearer, { headers: { "x-real-ip": ip } });
+    for (let i = 0; i < IP_REQUESTS_PER_MINUTE; i++) {
+      expect((await getMe(from("203.0.113.7", bogus))).status).toBe(401);
+    }
+    const lookups = vi.spyOn(prisma.extensionToken, "findUnique");
+    try {
+      const blocked = await getMe(from("203.0.113.7", bogus));
+      expect(blocked.status).toBe(429);
+      expect(blocked.headers.get("retry-after")).toMatch(/^\d+$/);
+      expect(lookups).not.toHaveBeenCalled();
+      expect((await getMe(from("198.51.100.4", token))).status).toBe(200);
+      expect(lookups).toHaveBeenCalledTimes(1); // the spy does see real lookups
+    } finally {
+      lookups.mockRestore();
+    }
   });
 
   it("does not let one user revoke another user's token", async () => {
