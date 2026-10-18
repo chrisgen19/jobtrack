@@ -3,7 +3,13 @@ import type { FieldSource, Layer } from "./types";
 
 type Key = keyof DraftValues;
 
-const SALARY_KEYS = ["salaryMin", "salaryMax", "currency", "salaryPeriod"] as const satisfies Key[];
+const SALARY_KEYS = [
+  "salaryMin",
+  "salaryMax",
+  "currency",
+  "salaryPeriod",
+  "salaryBasis",
+] as const satisfies Key[];
 const isSalaryKey = (key: Key): boolean => (SALARY_KEYS as readonly Key[]).includes(key);
 
 export type Merged = {
@@ -12,10 +18,14 @@ export type Merged = {
   sources: Partial<Record<Key, FieldSource>>;
 };
 
+const isFilled = (value: unknown): boolean =>
+  (typeof value === "string" && value.trim() !== "") || (Array.isArray(value) && value.length > 0);
+
 /**
  * Combines layers, most trusted first: each field takes the first non-empty
- * value. The salary fields move as a group (from the first layer with an
- * amount), so a minimum from one source never pairs with another's period.
+ * value (text, or a list like skills). The salary fields move as a group
+ * (from the first layer with an amount), so a minimum from one source never
+ * pairs with another's period.
  */
 export function mergeLayers(layers: Layer[]): Merged {
   const values: Partial<Record<Key, unknown>> = {};
@@ -30,7 +40,7 @@ export function mergeLayers(layers: Layer[]): Merged {
   for (const layer of layers) {
     for (const key of Object.keys(layer.values) as Key[]) {
       const value = layer.values[key];
-      if (isSalaryKey(key) || typeof value !== "string" || !value.trim() || key in values) continue;
+      if (isSalaryKey(key) || !isFilled(value) || key in values) continue;
       take(layer, key);
     }
   }

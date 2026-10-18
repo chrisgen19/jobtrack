@@ -1,4 +1,4 @@
-import { isNode, str } from "../read";
+import { dateOf, isNode, str } from "../read";
 import { arrangementFromLabel, employmentFromLabel } from "../parse/work";
 import { htmlToText, oneLine } from "../text";
 import { hostIs, type SiteAdapter } from "./adapter";
@@ -13,7 +13,8 @@ function ashbyProbe(jobId: string | null): string | null {
     const data = (window as unknown as { __appData?: Record<string, unknown> }).__appData;
     const posting = data?.posting as Record<string, unknown> | undefined;
     if (!posting || (jobId && String(posting.id) !== jobId)) return null;
-    const { title, locationName, workplaceType, employmentType, descriptionHtml } = posting;
+    const { title, locationName, workplaceType, employmentType, descriptionHtml, applicationDeadline } =
+      posting;
     const organization = (data?.organization as { name?: unknown } | undefined)?.name;
     const json = JSON.stringify({
       title,
@@ -21,6 +22,7 @@ function ashbyProbe(jobId: string | null): string | null {
       workplaceType,
       employmentType,
       descriptionHtml,
+      applicationDeadline,
       organization,
     });
     return json.length > 500_000 ? null : json;
@@ -48,6 +50,7 @@ export const ashby: SiteAdapter = {
         description: htmlToText(str(main.descriptionHtml)),
         workArrangement: arrangementFromLabel(str(main.workplaceType)),
         employmentType: employmentFromLabel(str(main.employmentType)),
+        deadline: dateOf(main.applicationDeadline),
       },
     };
   },

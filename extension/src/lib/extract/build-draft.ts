@@ -3,7 +3,7 @@ import { draftFromJobPosting, findJobPosting, postingMentions } from "./json-ld"
 import { mergeLayers } from "./merge";
 import { findSalaryInText } from "./parse/salary";
 import { arrangementFromLabel, arrangementFromText, employmentFromLabel } from "./parse/work";
-import type { JobRef } from "./sites/adapter";
+import { salaryFields, type JobRef } from "./sites/adapter";
 import { adapterFor, jobLinkFor, pageKeyFor } from "./sites/registry";
 import type { PageSnapshot } from "./snapshot";
 import { isJobBoard, sourceFromUrl } from "./source";
@@ -56,25 +56,53 @@ function pageLayer(snapshot: PageSnapshot): Layer {
   };
 }
 
-/** Pay, work setup and type implied by the text read so far (all guesses). */
+/** The first email address in a description that looks like a person to contact (not a no-reply box). */
+function contactEmailIn(text: string): string {
+  const emails = text.match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g) ?? [];
+  const email = emails.find((item) => !/^(?:no-?reply|donotreply|privacy|support)@/i.test(item));
+  return email?.slice(0, 254) ?? "";
+}
+
+/** Pay, work setup, type and a contact email implied by the text read so far (all guesses). */
 function textLayer(values: Partial<DraftValues>, host: string): Layer {
   const out: Partial<DraftValues> = {};
   if (!values.salaryMin && !values.salaryMax) {
-    const salary = findSalaryInText(values.description ?? "", { host });
-    if (salary)
-      Object.assign(out, {
-        salaryMin: salary.min,
-        salaryMax: salary.max,
-        currency: salary.currency,
-        salaryPeriod: salary.period,
-      });
+    Object.assign(out, salaryFields(findSalaryInText(values.description ?? "", { host })).values);
   }
+  if (!values.contactEmail) out.contactEmail = contactEmailIn(values.description ?? "");
   if (!values.workArrangement) {
     out.workArrangement =
       arrangementFromLabel(values.location ?? "") || arrangementFromText(values.description ?? "");
   }
   if (!values.employmentType) out.employmentType = employmentFromLabel(values.title ?? "");
   return { source: "text", values: out, guessed: Object.keys(out) as (keyof DraftValues)[] };
+}
+
+/**
+ * Page-level values and defaults on top of the merged layers: the posting
+ * link, source, a meaningful selection as the description, the contact
+ * switch and the application method (used only if the job is marked applied).
+ */
+function finishDraft(draft: DraftValues, snapshot: PageSnapshot): DraftValues {
+  const url = parseUrl(snapshot.url);
+  // Some sites still declare an http:// canonical link on https pages.
+  const canonical =
+    url?.protocol === "https:"
+      ? snapshot.canonicalUrl?.replace(/^http:\/\//, "https://")
+      : snapshot.canonicalUrl;
+  const pageUrl = jobLinkFor(snapshot.url) || httpUrl(canonical) || httpUrl(snapshot.url);
+  const selection = snapshot.selection.trim();
+  return {
+    ...draft,
+    postingUrl: pageUrl || draft.postingUrl,
+    source: sourceFromUrl(snapshot.url),
+    title: draft.title.slice(0, 160),
+    companyName: draft.companyName.slice(0, 120),
+    location: draft.location.slice(0, 120),
+    description: (selection.length >= MIN_SELECTION_CHARS ? selection : draft.description).slice(0, 20_000),
+    saveContact: draft.contactName !== "",
+    method: draft.method || (isJobBoard(snapshot.url) ? "JOB_BOARD" : "COMPANY_WEBSITE"),
+  };
 }
 
 export type BuiltDraft = {
@@ -102,34 +130,16 @@ export function buildDraft(snapshot: PageSnapshot, main: unknown = null): BuiltD
 
   const layers: Layer[] = [];
   if (adapter && url) layers.push(adapter.extract({ url, job, snapshot, main }));
-  if (posting && trustPosting) layers.push({ source: "json-ld", values: draftFromJobPosting(posting) });
+  if (posting && trustPosting) {
+    const values = draftFromJobPosting(posting);
+    layers.push({ source: "json-ld", values, guessed: values.deadline ? ["deadline"] : [] });
+  }
   // In a search page's split view the page title and meta describe the search, not the job.
   if (!job?.inList) layers.push(pageLayer(snapshot));
   const base = mergeLayers(layers);
   const merged = mergeLayers([...layers, textLayer(base.values, url?.hostname ?? "")]);
 
-  const jobUrl = jobLinkFor(snapshot.url);
-  // Some sites still declare an http:// canonical link on https pages.
-  const canonical =
-    url?.protocol === "https:"
-      ? snapshot.canonicalUrl?.replace(/^http:\/\//, "https://")
-      : snapshot.canonicalUrl;
-  const pageUrl = jobUrl || httpUrl(canonical) || httpUrl(snapshot.url);
-  const selection = snapshot.selection.trim();
-  const draft: DraftValues = {
-    ...emptyDraft(),
-    ...merged.values,
-    postingUrl: pageUrl || merged.values.postingUrl || "",
-    source: sourceFromUrl(snapshot.url),
-  };
-  draft.title = draft.title.slice(0, 160);
-  draft.companyName = draft.companyName.slice(0, 120);
-  draft.location = draft.location.slice(0, 120);
-  draft.description = (selection.length >= MIN_SELECTION_CHARS ? selection : draft.description).slice(
-    0,
-    20_000,
-  );
-
+  const draft = finishDraft({ ...emptyDraft(), ...merged.values }, snapshot);
   const trusted = (key: "title" | "companyName") => ["site", "json-ld"].includes(merged.sources[key] ?? "");
   return {
     draft,

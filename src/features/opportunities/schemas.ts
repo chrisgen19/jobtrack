@@ -62,20 +62,26 @@ function checkSalary(values: SalaryFields, ctx: z.RefinementCtx) {
 export const opportunitySchema = z.object(opportunityShape).superRefine(checkSalary);
 
 /** Quick Add can also record that the job was already applied to. */
-export const quickAddSchema = z
-  .object({
-    ...opportunityShape,
-    alreadyApplied: formBoolean,
-    appliedOn: optionalDateOnly,
-    stageId: optionalUuid,
-    method: optionalEnum(ApplicationMethod),
-  })
-  .superRefine((values, ctx) => {
-    checkSalary(values, ctx);
-    if (values.alreadyApplied && !values.appliedOn) {
-      ctx.addIssue({ code: "custom", path: ["appliedOn"], message: "Enter the date you applied." });
-    }
-  });
+export const quickAddShape = {
+  ...opportunityShape,
+  alreadyApplied: formBoolean,
+  appliedOn: optionalDateOnly,
+  stageId: optionalUuid,
+  method: optionalEnum(ApplicationMethod),
+};
+
+/** Cross-field checks of Quick Add (also used by the extension's save schema). */
+export function checkQuickAdd(
+  values: SalaryFields & { alreadyApplied?: boolean; appliedOn?: string },
+  ctx: z.RefinementCtx,
+) {
+  checkSalary(values, ctx);
+  if (values.alreadyApplied && !values.appliedOn) {
+    ctx.addIssue({ code: "custom", path: ["appliedOn"], message: "Enter the date you applied." });
+  }
+}
+
+export const quickAddSchema = z.object(quickAddShape).superRefine(checkQuickAdd);
 
 export type OpportunityInput = z.output<typeof opportunitySchema>;
 export type OpportunityFormValues = z.input<typeof opportunitySchema>;

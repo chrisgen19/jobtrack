@@ -46,25 +46,37 @@ function dueAtFrom(input: { dueDate?: string; dueTime?: string }, timezone: stri
 
 export async function createTask(input: CreateTaskInput): Promise<string> {
   const { user, preferences } = await requireWorkspace();
-  return prisma.$transaction(async (tx) => {
-    const links = await resolveLinks(tx, user.id, input);
-    const dueAt = dueAtFrom(input, preferences.timezone);
-    const task = await tx.task.create({
-      data: {
-        userId: user.id,
-        ...links,
-        title: input.title,
-        description: input.description ?? null,
-        type: input.type,
-        priority: input.priority,
-        dueAt,
-        reminderMinutesBefore: dueAt ? (input.reminderMinutesBefore ?? null) : null,
-      },
-      select: { id: true },
-    });
-    await afterTaskChange(tx, user.id, task.id);
-    return task.id;
+  return prisma.$transaction((tx) =>
+    createTaskInTx(tx, { userId: user.id, timezone: preferences.timezone }, input),
+  );
+}
+
+/**
+ * createTask inside the caller's transaction (the extension saves a job and
+ * its to-do together). Schedules reminders and calendar sync like any task.
+ */
+export async function createTaskInTx(
+  tx: TransactionClient,
+  ctx: { userId: string; timezone: string },
+  input: CreateTaskInput,
+): Promise<string> {
+  const links = await resolveLinks(tx, ctx.userId, input);
+  const dueAt = dueAtFrom(input, ctx.timezone);
+  const task = await tx.task.create({
+    data: {
+      userId: ctx.userId,
+      ...links,
+      title: input.title,
+      description: input.description ?? null,
+      type: input.type,
+      priority: input.priority,
+      dueAt,
+      reminderMinutesBefore: dueAt ? (input.reminderMinutesBefore ?? null) : null,
+    },
+    select: { id: true },
   });
+  await afterTaskChange(tx, ctx.userId, task.id);
+  return task.id;
 }
 
 export async function updateTask(input: UpdateTaskInput): Promise<void> {

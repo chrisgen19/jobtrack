@@ -23,6 +23,8 @@ export type DomPlan = {
   text?: Record<string, string>;
   /** Name -> CSS selector; the HTML of the first match. */
   html?: Record<string, string>;
+  /** Name -> CSS selector; the http(s) link (href) of the first match. */
+  links?: Record<string, string>;
   /** Label texts (any case) whose next element holds the value, e.g. "TYPE OF WORK". */
   labels?: string[];
   /** Ids of script elements whose text to read, e.g. "__NEXT_DATA__". */

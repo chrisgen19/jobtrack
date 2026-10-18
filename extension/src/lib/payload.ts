@@ -1,20 +1,73 @@
-import { z } from "zod";
-import { extensionJobDraftSchema, type ExtensionJobDraft } from "@jobtrack/shared/extension-api";
+import {
+  extensionJobDraftSchema,
+  fieldErrorsFrom,
+  type ExtensionJobDraft,
+} from "@jobtrack/shared/extension-api";
 import type { DraftValues } from "./draft";
 
 export type FieldErrors = Partial<Record<keyof DraftValues, string>>;
 
-/** API payload from the form; application fields are sent only when "already applied" is on. */
+/**
+ * API payload from the form. Application fields are sent only when "already
+ * applied" is on, the contact only when "save as contact" is, and the to-do
+ * only for a job not applied to yet.
+ */
 export function toPayload(values: DraftValues): ExtensionJobDraft {
-  const { alreadyApplied, appliedOn, stageId, ...job } = values;
-  return alreadyApplied ? { ...job, alreadyApplied, appliedOn, stageId } : job;
+  const {
+    alreadyApplied,
+    appliedOn,
+    stageId,
+    method,
+    saveContact,
+    contactName,
+    contactTitle,
+    contactEmail,
+    contactLinkedinUrl,
+    contactKind,
+    addFollowUp,
+    followUpType,
+    followUpDate,
+    ...job
+  } = values;
+  return {
+    ...job,
+    ...(alreadyApplied ? { alreadyApplied, appliedOn, stageId, method } : {}),
+    ...(saveContact
+      ? {
+          contact: {
+            name: contactName,
+            title: contactTitle,
+            email: contactEmail,
+            linkedinUrl: contactLinkedinUrl,
+            kind: contactKind,
+          },
+        }
+      : {}),
+    ...(addFollowUp && !alreadyApplied ? { followUp: { type: followUpType, dueDate: followUpDate } } : {}),
+  };
 }
 
-/** First message per field from a Zod error or the API's fieldErrors. */
+/** Form field for an error on a nested payload path ("contact.email"), or on the object itself. */
+const NESTED_FIELD: Record<string, keyof DraftValues> = {
+  contact: "contactName",
+  "contact.name": "contactName",
+  "contact.title": "contactTitle",
+  "contact.email": "contactEmail",
+  "contact.linkedinUrl": "contactLinkedinUrl",
+  "contact.kind": "contactKind",
+  followUp: "followUpDate",
+  "followUp.type": "followUpType",
+  "followUp.dueDate": "followUpDate",
+};
+
+/** First message per form field from the API's (or the client check's) fieldErrors. */
 export function firstErrors(fieldErrors: Record<string, string[] | undefined> | undefined): FieldErrors {
   const output: FieldErrors = {};
   for (const [key, messages] of Object.entries(fieldErrors ?? {})) {
-    if (messages?.[0]) output[key as keyof DraftValues] = messages[0];
+    // "requiredSkills.3" (one list item) belongs to the list's field.
+    const path = key.replace(/\.\d+$/, "");
+    const field = NESTED_FIELD[path] ?? (path as keyof DraftValues);
+    if (messages?.[0] && !output[field]) output[field] = messages[0];
   }
   return output;
 }
@@ -23,5 +76,5 @@ export function firstErrors(fieldErrors: Record<string, string[] | undefined> | 
 export function validateDraft(values: DraftValues): FieldErrors {
   const parsed = extensionJobDraftSchema.safeParse(toPayload(values));
   if (parsed.success) return {};
-  return firstErrors(z.flattenError(parsed.error).fieldErrors as Record<string, string[] | undefined>);
+  return firstErrors(fieldErrorsFrom(parsed.error));
 }

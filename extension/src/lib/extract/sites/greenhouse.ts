@@ -1,4 +1,4 @@
-import { asArray, isNode, str } from "../read";
+import { asArray, dateOf, isNode, str } from "../read";
 import { parseSalary } from "../parse/salary";
 import { arrangementFromLabel } from "../parse/work";
 import { htmlToText, oneLine } from "../text";
@@ -16,8 +16,17 @@ function greenhouseProbe(): string | null {
     const key = Object.keys(loaderData ?? {}).find((name) => name.includes("job_post_id"));
     const post = key ? loaderData[key]?.jobPost : undefined;
     if (!post) return null;
-    const { title, company_name, job_post_location, content, pay_ranges, public_url } = post;
-    const json = JSON.stringify({ title, company_name, job_post_location, content, pay_ranges, public_url });
+    const { title, company_name, job_post_location, content, pay_ranges, public_url, application_deadline } =
+      post;
+    const json = JSON.stringify({
+      title,
+      company_name,
+      job_post_location,
+      content,
+      pay_ranges,
+      public_url,
+      application_deadline,
+    });
     return json.length > 500_000 ? null : json;
   } catch {
     return null;
@@ -47,6 +56,7 @@ export const greenhouse: SiteAdapter = {
         // Older boards HTML-escape the content; htmlToText decodes it first.
         description: htmlToText(str(main.content)),
         workArrangement: arrangementFromLabel(location),
+        deadline: dateOf(main.application_deadline),
         ...salary.values,
       },
       guessed: salary.guessed,

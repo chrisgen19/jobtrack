@@ -1,6 +1,6 @@
 # Chrome Web Store Listing: Save to JobTrack
 
-> Last Updated: 2026-10-18 (side panel, context menu, shortcut, optional job-site access). Status: not submitted (distributed as an unpacked build for now).
+> Last Updated: 2026-10-18 (side panel, context menu, shortcut, optional job-site access; contacts and to-dos). Status: not submitted (distributed as an unpacked build for now).
 
 ## Store Listing
 
@@ -12,7 +12,7 @@
 
 Save to JobTrack adds job postings to your JobTrack job search tracker without copying and pasting.
 
-Open the extension on a job posting and it fills in the job title, company, location, work setup, employment type, salary and description for you. Highlight part of the page first to use that text as the description. Review and edit everything, mark it as already applied if you have, and click Save job. The extension warns you when you already saved the same posting.
+Open the extension on a job posting and it fills in the job title, company, location, work setup, employment type, salary, description, skills, deadline and reference code for you. Highlight part of the page first to use that text as the description. Review and edit everything, add tags, save the recruiter as a contact, add an "apply by" or follow-up to-do, or mark it as already applied, and click Save job. The extension warns you when you already saved the same posting.
 
 Keep the form open beside the page in Chrome's side panel: press Alt+Shift+J or right-click and choose "Save job to JobTrack". On LinkedIn, JobStreet and Indeed search pages the panel follows the job you click. Right-click selected text to use it as the description.
 
@@ -65,13 +65,13 @@ Privacy: the extension reads a page only when you open it on that page (toolbar 
 
 **Does the extension collect user data?** Yes: the job details it reads from the page (sent to the user's own JobTrack server for the duplicate check and, on Save, to store the job) and the user's name and email (received from JobTrack and shown in the popup).
 
-| Data Type                    | Collected? | Transmitted Off-Device?                        | Purpose                                                                                                                                                                            | Shared with Third Parties? |
-| ---------------------------- | ---------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| Personally identifiable info | Yes        | No (received from JobTrack, not sent anywhere) | Shows which JobTrack account the job is saved to (name and email, not stored by the extension)                                                                                     | No                         |
-| Authentication info          | Yes        | Yes (to JobTrack only)                         | Connection token that authorizes saving                                                                                                                                            | No                         |
-| Website content              | Yes        | Yes (to JobTrack only)                         | Job details from the open page: checked for duplicates when the popup opens, stored only on Save                                                                                   | No                         |
-| Web history                  | Yes        | Yes (to JobTrack only)                         | The open posting's URL: duplicate check, and saved with the job on Save. With auto-detect on, supported job sites' tab URLs are checked on the device for the badge and never sent | No                         |
-| Other categories             | No         | No                                             |                                                                                                                                                                                    | No                         |
+| Data Type                    | Collected? | Transmitted Off-Device?         | Purpose                                                                                                                                                                                                                 | Shared with Third Parties? |
+| ---------------------------- | ---------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| Personally identifiable info | Yes        | Yes (to JobTrack only, on Save) | The user's JobTrack name and email (received, shown, not stored by the extension). If the user saves a contact: the recruiter's name, title, email and LinkedIn link from the posting, stored in their JobTrack account | No                         |
+| Authentication info          | Yes        | Yes (to JobTrack only)          | Connection token that authorizes saving                                                                                                                                                                                 | No                         |
+| Website content              | Yes        | Yes (to JobTrack only)          | Job details from the open page: checked for duplicates when the popup opens, stored only on Save                                                                                                                        | No                         |
+| Web history                  | Yes        | Yes (to JobTrack only)          | The open posting's URL: duplicate check, and saved with the job on Save. With auto-detect on, supported job sites' tab URLs are checked on the device for the badge and never sent                                      | No                         |
+| Other categories             | No         | No                              |                                                                                                                                                                                                                         | No                         |
 
 - [x] Data is NOT sold to third parties
 - [x] Data is NOT used for purposes unrelated to the extension's core functionality

@@ -1,5 +1,5 @@
 import type { SalaryPeriod } from "@jobtrack/shared/extension-api";
-import { at, isNode, parseJson, str } from "../read";
+import { at, dateOf, isNode, parseJson, str } from "../read";
 import { employmentFromLabel } from "../parse/work";
 import { htmlToText, oneLine } from "../text";
 import { hostIs, type SiteAdapter } from "./adapter";
@@ -53,6 +53,7 @@ export const kalibrr: SiteAdapter = {
         salaryMax: max && max !== min ? max : "",
         currency: min || max ? str(job.salaryCurrency).toUpperCase().slice(0, 3) : "",
         salaryPeriod: min || max ? (PERIODS[str(job.salaryInterval).toLowerCase()] ?? "") : "",
+        deadline: dateOf(job.applicationEndDate),
       },
     };
   },

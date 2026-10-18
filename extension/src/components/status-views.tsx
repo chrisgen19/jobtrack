@@ -25,6 +25,18 @@ export function ConnectView({ notice, onStarted }: { notice?: string; onStarted:
   );
 }
 
+/** " with your application recorded, a contact and a to-do", for what the save added. */
+function savedExtras(result: ExtensionSaveResult): string {
+  const parts = [
+    result.applicationId ? "your application recorded" : "",
+    result.contactId ? "a contact" : "",
+    result.taskId ? "a to-do" : "",
+  ].filter(Boolean);
+  if (!parts.length) return "";
+  const last = parts.pop()!;
+  return ` with ${parts.length ? `${parts.join(", ")} and ${last}` : last}`;
+}
+
 export function SavedView({
   result,
   title,
@@ -39,7 +51,7 @@ export function SavedView({
       <CheckCircle2 className="size-9 text-brand" aria-hidden />
       <h1 className="text-[15px] font-bold text-heading">Saved to JobTrack</h1>
       <p className="text-xs leading-relaxed text-subtle">
-        &ldquo;{title}&rdquo; is in your jobs{result.applicationId ? " with your application recorded" : ""}.
+        &ldquo;{title}&rdquo; is in your jobs{savedExtras(result)}.
       </p>
       <div className="flex gap-2">
         <Button onClick={() => browser.tabs.create({ url: result.url })}>Open in JobTrack</Button>

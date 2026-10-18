@@ -13,6 +13,8 @@ export type PageSnapshot = {
   text: Record<string, string[]>;
   /** DomPlan.html results: the first match's HTML per name. */
   html: Record<string, string>;
+  /** DomPlan.links results: the first match's http(s) href per name. */
+  links: Record<string, string>;
   /** DomPlan.labels results: label (as given) -> value text. */
   labelled: Record<string, string>;
   /** DomPlan.scriptIds results: id -> script text. */
@@ -115,6 +117,10 @@ export function collectPageSnapshot(plan: DomPlan): PageSnapshot {
     html: readSelectors(plan.html, (selector) =>
       (document.querySelector(selector)?.innerHTML ?? "").slice(0, 100_000),
     ),
+    links: readSelectors(plan.links, (selector) => {
+      const href = (document.querySelector(selector) as HTMLAnchorElement | null)?.href ?? "";
+      return /^https?:\/\//.test(href) ? href.slice(0, 2_048) : "";
+    }),
     labelled: readLabels(plan.labels ?? []),
     scripts,
     mainHtml: findMainHtml(),

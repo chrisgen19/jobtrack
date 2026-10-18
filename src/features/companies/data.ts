@@ -22,6 +22,16 @@ export async function findOrCreateCompany(
   return company.id;
 }
 
+/** Sets a company's website only when it has none (never overwrites what the user entered). */
+export async function setCompanyWebsiteIfEmpty(
+  tx: TransactionClient,
+  userId: string,
+  companyId: string,
+  website: string,
+): Promise<void> {
+  await tx.company.updateMany({ where: { id: companyId, userId, website: null }, data: { website } });
+}
+
 export type CompanySummary = {
   id: string;
   name: string;

@@ -21,7 +21,19 @@ review form, then saves only when you click **Save job**.
 - **Split views:** on LinkedIn (`currentJobId`), JobStreet (`jobId`) and Indeed (`vjk`) search pages, the selected job
   is read, and the saved link points to that job, not to the search.
 - **Duplicates:** warns when you already saved the same posting link, or the same title at the same company.
-- **Already applied:** optionally records the application with its date and pipeline stage.
+- **Already applied:** optionally records the application with its date, pipeline stage and how you applied.
+- **More details:**
+  - Skills, tags, deadline, reference code, pay basis (gross/net) and the company's website.
+  - The website is set on the company only when it has none.
+  - JSON-LD `validThrough` fills the deadline marked **check**, since it is often the listing's expiry.
+- **Contact:** saves the recruiter or hiring manager as a contact of the company.
+  - LinkedIn's hiring-team card is read when signed in, best effort.
+  - Otherwise an email in the description is offered.
+  - A contact already at that company with the same LinkedIn profile or email is reused.
+- **To-do** (jobs not applied to yet): "Apply by" or "Follow up on" a date, defaulting to the deadline or your
+  follow-up days. It has a reminder like any JobTrack task.
+- Servers older than this extension (contract v0.1, no `followUpDays` in `/me`) hide these sections, since they would
+  drop the fields.
 - Unsaved edits are kept per page (the 20 most recently edited) until the browser closes, so closing the popup by
   accident, or opening it on another posting in between, loses nothing.
 

@@ -31,6 +31,9 @@ export function byPrefix(node: unknown, prefix: string): unknown {
   return key === undefined ? undefined : node[key];
 }
 
+/** The YYYY-MM-DD at the start of an ISO date or timestamp, or "". */
+export const dateOf = (value: unknown): string => str(value).match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
+
 /** Parses JSON, or null when it is malformed. */
 export function parseJson(text: string | undefined): unknown {
   if (!text) return null;
