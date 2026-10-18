@@ -18,6 +18,8 @@ export type ReviewView =
       me: ExtensionMe;
       tabId: number | null;
       initial: DraftValues;
+      /** The title read from the page, before a saved draft's edits; null when unreadable. */
+      pageTitle: string | null;
       /** Draft key: the job's own link in list views, else the page URL. */
       pageUrl: string | null;
       status: PageStatus;
@@ -40,14 +42,26 @@ export type LoadOptions = {
   previous?: FormView;
 };
 
+/**
+ * Whether a read still shows the previous job under a new job's URL (a split
+ * view's details pane lags behind the URL). Compares the titles read from the
+ * page: the form's title may hold edits restored from a saved draft.
+ */
+export function isStaleRead(
+  read: { pageKey: string; title: string } | null,
+  previous: Pick<FormView, "pageUrl" | "pageTitle"> | undefined,
+): boolean {
+  if (!read || !previous || previous.pageTitle === null) return false;
+  return read.pageKey !== previous.pageUrl && read.title === previous.pageTitle;
+}
+
 /** Reads a tab and builds its draft. */
 async function readDraft(tab: TabRef | null, { watch, previous }: LoadOptions): Promise<BuiltDraft | null> {
   if (!tab) return null;
   for (let attempt = 0; ; attempt++) {
     const page = await readTab(tab, { watch });
     const built = page ? buildDraft(page.snapshot, page.main) : null;
-    const stale =
-      built && previous && built.pageKey !== previous.pageUrl && built.draft.title === previous.initial.title;
+    const stale = isStaleRead(built && { pageKey: built.pageKey, title: built.draft.title }, previous);
     if (!stale || attempt >= STALE_RETRIES) return built;
     await wait(STALE_RETRY_MS);
   }
@@ -75,6 +89,7 @@ export async function loadReview(tab: TabRef | null, options: LoadOptions = {}):
       tabId: tab?.id ?? null,
       pageUrl,
       initial: saved ? { ...defaults, ...saved } : defaults,
+      pageTitle: built?.draft.title ?? null,
       status: built?.status ?? "unreadable",
       // An edited draft was reviewed already; only fresh prefills are flagged.
       guessed: saved ? [] : (built?.guessed ?? []),

@@ -113,7 +113,7 @@ for tabs it can't read yet.
 
 - **Who opens the panel:** the background worker (`lib/background/panel-triggers.ts`). It calls `sidePanel.open()`
   first in the event handler, while the click still counts as a user gesture, then tells an open panel to read the
-  tab again.
+  tab again. The popup's side panel button does the same.
 - **Following the tab:** `lib/use-panel-tab.ts` follows the panel window's active tab. It re-reads when the job
   changes (`pageKeyFor`): the injected watcher (`lib/extract/watch-url.ts`) reports split-view clicks.
 - **Keeping edits:** each job keeps its own unsaved draft.
