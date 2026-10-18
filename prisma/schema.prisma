@@ -1036,7 +1036,7 @@ model AiUsage {
 model AiExtractionCache {
   id        String   @id @default(uuid(7)) @db.Uuid
   userId    String   @map("user_id")
-  /// sha256 of prompt version, model, normalized posting URL and the text's own hash.
+  /// sha256 of prompt version, model, normalized posting URL, and hashes of the page title and text.
   cacheKey  String   @map("cache_key") @db.Char(64)
   result    Json
   expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
