@@ -13,7 +13,8 @@ import { SalarySection } from "./form/salary-section";
 
 const STATUS_NOTICE: Record<PageStatus, string | null> = {
   found: null,
-  partial: "Some details couldn't be read from this page, so fields may be missing. Check them before saving.",
+  partial:
+    "Some details couldn't be read from this page, so fields may be missing. Check them before saving.",
   unreadable:
     "This page can't be read (browser pages and some sites block extensions). Fill in the details yourself.",
 };
@@ -28,7 +29,15 @@ type Props = {
   onUnauthorized: (message: string) => void;
 };
 
-export function JobForm({ me, initial, pageUrl, status, guessed: initialGuessed, onSaved, onUnauthorized }: Props) {
+export function JobForm({
+  me,
+  initial,
+  pageUrl,
+  status,
+  guessed: initialGuessed,
+  onSaved,
+  onUnauthorized,
+}: Props) {
   const [values, setValues] = useState(initial);
   const [guessed, setGuessed] = useState<ReadonlySet<keyof DraftValues>>(() => new Set(initialGuessed));
   const [errors, setErrors] = useState<FieldErrors>({});

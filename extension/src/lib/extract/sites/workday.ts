@@ -10,7 +10,10 @@ import { firstText, hostIs, type SiteAdapter } from "./adapter";
  */
 function companyOf(url: URL, jsonLd: string[]): { name: string; guessed: boolean } {
   const organization = asArray(findJobPosting(jsonLd)?.hiringOrganization)[0];
-  const fromJsonLd = oneLine(isNode(organization) ? str(organization.name) : str(organization)).replace(/^\d+\s+/, "");
+  const fromJsonLd = oneLine(isNode(organization) ? str(organization.name) : str(organization)).replace(
+    /^\d+\s+/,
+    "",
+  );
   if (fromJsonLd) return { name: fromJsonLd, guessed: false };
   const tenant = url.hostname.split(".")[0] ?? "";
   const name = tenant.length <= 4 ? tenant.toUpperCase() : tenant.charAt(0).toUpperCase() + tenant.slice(1);

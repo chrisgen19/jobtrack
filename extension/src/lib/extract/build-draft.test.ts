@@ -140,9 +140,17 @@ describe("mergeLayers", () => {
   it("takes the salary fields from one layer together", () => {
     const merged = mergeLayers([
       { source: "site", values: { title: "A", currency: "AUD" } },
-      { source: "json-ld", values: { title: "B", salaryMin: "100", salaryPeriod: "HOURLY", currency: "USD" } },
+      {
+        source: "json-ld",
+        values: { title: "B", salaryMin: "100", salaryPeriod: "HOURLY", currency: "USD" },
+      },
     ]);
-    expect(merged.values).toMatchObject({ title: "A", salaryMin: "100", salaryPeriod: "HOURLY", currency: "USD" });
+    expect(merged.values).toMatchObject({
+      title: "A",
+      salaryMin: "100",
+      salaryPeriod: "HOURLY",
+      currency: "USD",
+    });
     expect(merged.sources).toMatchObject({ title: "site", salaryMin: "json-ld" });
   });
 });

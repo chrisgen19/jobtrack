@@ -218,6 +218,7 @@ PR 1, extraction engine (`feature/extension-extraction-v2`):
   4. Guesses from that text.
 
   The salary fields move as a group, and inferred fields show a "check" marker in the form.
+
 - [x] Site adapters:
   - LinkedIn
   - JobStreet/SEEK/JobsDB, from the live Apollo cache, so split-view clicks are read correctly
@@ -230,6 +231,7 @@ PR 1, extraction engine (`feature/extension-extraction-v2`):
   - Workday (legal entity code dropped from the employer)
 
   Workable needs no adapter: its JSON-LD is complete.
+
 - [x] Selectors and page-state paths ship in the package and reach the page only as `executeScript` args. Probes
       return only the job's fields as JSON (500 KB cap, 1.5 s timeout).
 - [x] Split views (LinkedIn `currentJobId`, JobStreet `jobId`, Indeed `vjk`):

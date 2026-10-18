@@ -102,7 +102,10 @@ const asString = (value: number | undefined): string => (value === undefined ? "
  * the text has no amount.
  */
 export function parseSalary(text: string, context: { host?: string } = {}): ParsedSalary | null {
-  const normalized = text.replace(/[\u2013\u2014]/g, "-").replace(/\u00a0/g, " ").slice(0, 300);
+  const normalized = text
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\u00a0/g, " ")
+    .slice(0, 300);
   const amounts = amountsOf(normalized);
   if (!amounts.length) return null;
 

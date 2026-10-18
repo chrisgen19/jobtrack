@@ -161,7 +161,9 @@ describe("Kalibrr", () => {
       salaryInterval: "month",
     };
     const url = "https://www.kalibrr.com/c/seo-hacker/jobs/240698/web-developer";
-    const shown = buildDraft(snapshotOf({ url, scripts: { __NEXT_DATA__: nextData({ ...base, salaryShown: true }) } }));
+    const shown = buildDraft(
+      snapshotOf({ url, scripts: { __NEXT_DATA__: nextData({ ...base, salaryShown: true }) } }),
+    );
     expect(shown.draft).toMatchObject({
       companyName: "SEO Hacker",
       location: "Parañaque, Metro Manila",
@@ -174,7 +176,9 @@ describe("Kalibrr", () => {
     });
     expect(shown.draft.description).toBe("• Build WordPress themes\n\nQualifications\n• PHP");
 
-    const hidden = buildDraft(snapshotOf({ url, scripts: { __NEXT_DATA__: nextData({ ...base, salaryShown: false }) } }));
+    const hidden = buildDraft(
+      snapshotOf({ url, scripts: { __NEXT_DATA__: nextData({ ...base, salaryShown: false }) } }),
+    );
     expect(hidden.draft).toMatchObject({ salaryMin: "", salaryMax: "", salaryPeriod: "" });
   });
 });
@@ -244,7 +248,12 @@ describe("applicant tracking systems", () => {
           }),
         ],
       }),
-      { title: "AI Partnerships Manager", workplaceType: "Hybrid", employmentType: "FullTime", organization: "Ramp" },
+      {
+        title: "AI Partnerships Manager",
+        workplaceType: "Hybrid",
+        employmentType: "FullTime",
+        organization: "Ramp",
+      },
     );
     expect(built.draft).toMatchObject({
       workArrangement: "HYBRID",

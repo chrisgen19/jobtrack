@@ -42,7 +42,10 @@ function pageLayer(snapshot: PageSnapshot): Layer {
   return {
     source: "page",
     values: {
-      title: stripSiteSuffix(oneLine(snapshot.meta["og:title"] ?? snapshot.h1 ?? snapshot.title), siteName).slice(0, 160),
+      title: stripSiteSuffix(
+        oneLine(snapshot.meta["og:title"] ?? snapshot.h1 ?? snapshot.title),
+        siteName,
+      ).slice(0, 160),
       companyName: company,
       description:
         mainText.length >= MIN_MAIN_TEXT_CHARS
@@ -58,10 +61,17 @@ function textLayer(values: Partial<DraftValues>, host: string): Layer {
   const out: Partial<DraftValues> = {};
   if (!values.salaryMin && !values.salaryMax) {
     const salary = findSalaryInText(values.description ?? "", { host });
-    if (salary) Object.assign(out, { salaryMin: salary.min, salaryMax: salary.max, currency: salary.currency, salaryPeriod: salary.period });
+    if (salary)
+      Object.assign(out, {
+        salaryMin: salary.min,
+        salaryMax: salary.max,
+        currency: salary.currency,
+        salaryPeriod: salary.period,
+      });
   }
   if (!values.workArrangement) {
-    out.workArrangement = arrangementFromLabel(values.location ?? "") || arrangementFromText(values.description ?? "");
+    out.workArrangement =
+      arrangementFromLabel(values.location ?? "") || arrangementFromText(values.description ?? "");
   }
   if (!values.employmentType) out.employmentType = employmentFromLabel(values.title ?? "");
   return { source: "text", values: out, guessed: Object.keys(out) as (keyof DraftValues)[] };
@@ -101,7 +111,9 @@ export function buildDraft(snapshot: PageSnapshot, main: unknown = null): BuiltD
   const jobUrl = url && job && adapter?.postingUrl ? adapter.postingUrl(url, job) : "";
   // Some sites still declare an http:// canonical link on https pages.
   const canonical =
-    url?.protocol === "https:" ? snapshot.canonicalUrl?.replace(/^http:\/\//, "https://") : snapshot.canonicalUrl;
+    url?.protocol === "https:"
+      ? snapshot.canonicalUrl?.replace(/^http:\/\//, "https://")
+      : snapshot.canonicalUrl;
   const pageUrl = jobUrl || httpUrl(canonical) || httpUrl(snapshot.url);
   const selection = snapshot.selection.trim();
   const draft: DraftValues = {
@@ -113,7 +125,10 @@ export function buildDraft(snapshot: PageSnapshot, main: unknown = null): BuiltD
   draft.title = draft.title.slice(0, 160);
   draft.companyName = draft.companyName.slice(0, 120);
   draft.location = draft.location.slice(0, 120);
-  draft.description = (selection.length >= MIN_SELECTION_CHARS ? selection : draft.description).slice(0, 20_000);
+  draft.description = (selection.length >= MIN_SELECTION_CHARS ? selection : draft.description).slice(
+    0,
+    20_000,
+  );
 
   const trusted = (key: "title" | "companyName") => ["site", "json-ld"].includes(merged.sources[key] ?? "");
   return {

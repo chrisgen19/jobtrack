@@ -46,7 +46,9 @@ describe("collectPageSnapshot", () => {
   });
 
   it("picks the description block over navigation-heavy containers", () => {
-    const links = Array.from({ length: 40 }, (_, i) => `<a href="/j/${i}">Similar job number ${i}</a>`).join("");
+    const links = Array.from({ length: 40 }, (_, i) => `<a href="/j/${i}">Similar job number ${i}</a>`).join(
+      "",
+    );
     const body = "We build payroll software for small businesses. ".repeat(10);
     document.body.innerHTML = `<main><nav>${links}</nav><section class="job-description"><p>${body}</p></section></main>`;
     const snapshot = serialized(collectPageSnapshot)({});
@@ -81,13 +83,18 @@ describe("MAIN-world probes", () => {
       state: {
         loaderData: {
           root: { user: "secret" },
-          "routes/$url_token_.jobs_.$job_post_id": { jobPost: { title: "SRE", questions: ["q"], company_name: "Acme" } },
+          "routes/$url_token_.jobs_.$job_post_id": {
+            jobPost: { title: "SRE", questions: ["q"], company_name: "Acme" },
+          },
         },
       },
     };
     expect(JSON.parse(serialized(greenhouse.probe!)(null)!)).toEqual({ title: "SRE", company_name: "Acme" });
 
-    page.__appData = { posting: { id: "abc", title: "PM", workplaceType: "Hybrid", secret: 1 }, organization: { name: "Ramp" } };
+    page.__appData = {
+      posting: { id: "abc", title: "PM", workplaceType: "Hybrid", secret: 1 },
+      organization: { name: "Ramp" },
+    };
     expect(JSON.parse(serialized(ashby.probe!)("abc")!)).toEqual({
       title: "PM",
       workplaceType: "Hybrid",

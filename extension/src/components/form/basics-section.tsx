@@ -16,7 +16,12 @@ export function BasicsSection({ values, errors, guessed, set }: SectionProps) {
           onChange={(event) => set("title", event.target.value)}
         />
       </Field>
-      <Field id="companyName" label="Company *" error={errors.companyName} guessed={guessed.has("companyName")}>
+      <Field
+        id="companyName"
+        label="Company *"
+        error={errors.companyName}
+        guessed={guessed.has("companyName")}
+      >
         <TextInput
           id="companyName"
           required

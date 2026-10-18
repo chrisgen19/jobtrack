@@ -39,7 +39,8 @@ function fromChips(criteria: string[], chips: string[], host: string) {
   for (const chip of chips) {
     arrangement ||= arrangementFromLabel(chip);
     employment ||= employmentFromLabel(chip);
-    if (!salary && /\d/.test(chip) && /[$₱€£]|\b[A-Z]{3}\b|\/(?:yr|mo|hr)/.test(chip)) salary = parseSalary(chip, { host });
+    if (!salary && /\d/.test(chip) && /[$₱€£]|\b[A-Z]{3}\b|\/(?:yr|mo|hr)/.test(chip))
+      salary = parseSalary(chip, { host });
   }
   return { employment, arrangement, salary };
 }

@@ -16,7 +16,9 @@ export const lever: SiteAdapter = {
     return {
       source: "site",
       values: {
-        location: firstText(snapshot, "location").replace(/\s*\/\s*$/, "").slice(0, 120),
+        location: firstText(snapshot, "location")
+          .replace(/\s*\/\s*$/, "")
+          .slice(0, 120),
         workArrangement: arrangementFromLabel(firstText(snapshot, "workplace")),
         employmentType: employmentFromLabel(firstText(snapshot, "commitment")),
       },

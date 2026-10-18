@@ -13,7 +13,8 @@ export function arrangementFromLabel(label: string): WorkArrangement | "" {
   return "";
 }
 
-const HYBRID_TEXT = /\bhybrid\s+(?:work|set-?up|arrangement|role|schedule|model|position)\b|\b(?:work|set-?up|arrangement)\s*:\s*hybrid\b/i;
+const HYBRID_TEXT =
+  /\bhybrid\s+(?:work|set-?up|arrangement|role|schedule|model|position)\b|\b(?:work|set-?up|arrangement)\s*:\s*hybrid\b/i;
 const REMOTE_TEXT =
   /\b(?:fully|100%|permanent(?:ly)?)\s+remote\b|\bremote\s+(?:work|role|position|job|set-?up|first|opportunity)\b|\bwork\s+from\s+home\b|\bwfh\b/i;
 const NOT_REMOTE = /\b(?:not|no|non)[- ]remote\b|\bnot\s+(?:a\s+)?(?:fully\s+)?remote\b/i;
@@ -41,6 +42,9 @@ const EMPLOYMENT_LABELS: [RegExp, EmploymentType][] = [
 
 /** Employment type from a label like "Full time", "Contract/Temp", "FullTime" or "Internship / OJT". */
 export function employmentFromLabel(label: string): EmploymentType | "" {
-  const text = label.toLowerCase().replace(/fulltime/g, "full time").replace(/parttime/g, "part time");
+  const text = label
+    .toLowerCase()
+    .replace(/fulltime/g, "full time")
+    .replace(/parttime/g, "part time");
   return EMPLOYMENT_LABELS.find(([pattern]) => pattern.test(text))?.[1] ?? "";
 }

@@ -15,7 +15,14 @@ function ashbyProbe(jobId: string | null): string | null {
     if (!posting || (jobId && String(posting.id) !== jobId)) return null;
     const { title, locationName, workplaceType, employmentType, descriptionHtml } = posting;
     const organization = (data?.organization as { name?: unknown } | undefined)?.name;
-    const json = JSON.stringify({ title, locationName, workplaceType, employmentType, descriptionHtml, organization });
+    const json = JSON.stringify({
+      title,
+      locationName,
+      workplaceType,
+      employmentType,
+      descriptionHtml,
+      organization,
+    });
     return json.length > 500_000 ? null : json;
   } catch {
     return null;
