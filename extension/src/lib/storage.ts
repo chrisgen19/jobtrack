@@ -10,6 +10,15 @@ export const pendingConnectItem = storage.defineItem<{ state: string; createdAt:
   { fallback: null },
 );
 
+/**
+ * Text picked with the "Use selection as job description" menu item, for the
+ * side panel to apply to that tab's form (session; consumed once).
+ */
+export const pendingSelectionItem = storage.defineItem<{ tabId: number; text: string; at: number } | null>(
+  "session:pendingSelection",
+  { fallback: null },
+);
+
 /** Unsaved review forms by page URL (session: cleared when the browser closes). See drafts.ts. */
 export const draftsItem = storage.defineItem<Record<string, { values: DraftValues; updatedAt: number }>>(
   "session:drafts",

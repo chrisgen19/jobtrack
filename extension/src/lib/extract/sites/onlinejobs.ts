@@ -14,6 +14,10 @@ const WAGE = "WAGE / SALARY";
 export const onlinejobs: SiteAdapter = {
   id: "onlinejobs",
   matches: (url) => hostIs(url, "onlinejobs.ph"),
+  jobRef(url) {
+    const id = url.pathname.match(/\/jobseekers\/job\/(?:[^/]*-)?(\d+)$/)?.[1];
+    return id ? { id, inList: false } : null;
+  },
   plan: {
     text: { title: "h1" },
     html: { description: "#job-description" },

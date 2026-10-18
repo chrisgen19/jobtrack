@@ -1,5 +1,7 @@
 import { browser } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
+import { registerBadge } from "@/lib/background/badge";
+import { registerPanelTriggers } from "@/lib/background/panel-triggers";
 import { handleConnectMessage } from "@/lib/connect";
 
 export default defineBackground(() => {
@@ -10,4 +12,8 @@ export default defineBackground(() => {
     })();
     return true;
   });
+  // No runtime.onMessage listener here on purpose: the page URL watcher stops
+  // once nothing receives its messages, i.e. when no side panel is open.
+  registerPanelTriggers();
+  registerBadge();
 });

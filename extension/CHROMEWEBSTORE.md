@@ -1,6 +1,6 @@
 # Chrome Web Store Listing: Save to JobTrack
 
-> Last Updated: 2026-10-16 (privacy disclosures corrected). Status: not submitted (distributed as an unpacked build for now).
+> Last Updated: 2026-10-18 (side panel, context menu, shortcut, optional job-site access). Status: not submitted (distributed as an unpacked build for now).
 
 ## Store Listing
 
@@ -14,13 +14,17 @@ Save to JobTrack adds job postings to your JobTrack job search tracker without c
 
 Open the extension on a job posting and it fills in the job title, company, location, work setup, employment type, salary and description for you. Highlight part of the page first to use that text as the description. Review and edit everything, mark it as already applied if you have, and click Save job. The extension warns you when you already saved the same posting.
 
+Keep the form open beside the page in Chrome's side panel: press Alt+Shift+J or right-click and choose "Save job to JobTrack". On LinkedIn, JobStreet and Indeed search pages the panel follows the job you click. Right-click selected text to use it as the description.
+
 How to use it:
 
 1. Click Connect to JobTrack and approve the connection in your JobTrack account.
 2. Open a job posting on any site.
-3. Click the extension, check the details and click Save job.
+3. Click the extension (or press Alt+Shift+J), check the details and click Save job.
 
-Privacy: the extension reads a page only when you open it on that page. It then checks the posting's link, title and company against your saved jobs, and saves nothing until you click Save job. It talks only to your JobTrack server. You can disconnect it any time from the extension or from JobTrack's settings.
+Optional: turn on "Auto-detect job sites" to mark job pages on LinkedIn, JobStreet, Indeed and other supported sites with a badge, and have the side panel read them as you browse.
+
+Privacy: the extension reads a page only when you open it on that page (toolbar button, shortcut or right-click), or, if you turn on auto-detect, job pages on the supported job sites while the side panel is open. It then checks the posting's link, title and company against your saved jobs, and saves nothing until you click Save job. It talks only to your JobTrack server. You can disconnect it any time from the extension or from JobTrack's settings.
 
 **Category:** Productivity
 
@@ -45,25 +49,29 @@ Privacy: the extension reads a page only when you open it on that page. It then 
 
 ## Permissions Justification
 
-| Permission                           | Type             | Justification                                                                                                                   |
-| ------------------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `activeTab`                          | permissions      | Reads the job posting on the current tab, only after the user opens the extension on it, to prefill the save form.              |
-| `scripting`                          | permissions      | Runs a one-time reader on that tab to collect the posting's title, company and description; nothing stays injected in the page. |
-| `storage`                            | permissions      | Keeps the user's connection token on the device, plus unsaved forms for recently viewed postings until the browser closes.      |
-| `https://<jobtrack server>/*`        | host_permissions | Sends the job the user chose to save to their own JobTrack account. No other site is contacted.                                 |
-| `externally_connectable` (same host) | manifest         | Lets the user's JobTrack account page hand the connection token to the extension after the user approves it.                    |
+| Permission                                                                                              | Type                      | Justification                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `activeTab`                                                                                             | permissions               | Reads the job posting on the current tab, only after the user opens the extension on it, to prefill the save form.                                                                                                                          |
+| `scripting`                                                                                             | permissions               | Runs a reader on that tab to collect the posting's title, company and description. While the side panel is open, a small watcher also reports when the user clicks another job in a split-view search page; it stops when the panel closes. |
+| `contextMenus`                                                                                          | permissions               | "Save job to JobTrack" and "Use selection as job description" on the right-click menu.                                                                                                                                                      |
+| `sidePanel`                                                                                             | permissions               | Shows the save form beside the page and follows the job the user selects.                                                                                                                                                                   |
+| `commands` (Alt+Shift+J)                                                                                | manifest                  | Keyboard shortcut that opens the save form for the current page.                                                                                                                                                                            |
+| Job sites (LinkedIn, JobStreet/SEEK, Indeed, Kalibrr, OnlineJobs.ph, Greenhouse, Lever, Ashby, Workday) | optional_host_permissions | Requested only when the user turns on "Auto-detect job sites": marks job pages with a badge (the URL is checked on the device) and lets the side panel read them without a click first.                                                     |
+| `storage`                                                                                               | permissions               | Keeps the user's connection token on the device, plus unsaved forms for recently viewed postings until the browser closes.                                                                                                                  |
+| `https://<jobtrack server>/*`                                                                           | host_permissions          | Sends the job the user chose to save to their own JobTrack account. No other site is contacted.                                                                                                                                             |
+| `externally_connectable` (same host)                                                                    | manifest                  | Lets the user's JobTrack account page hand the connection token to the extension after the user approves it.                                                                                                                                |
 
 ## Privacy & Data Use
 
 **Does the extension collect user data?** Yes: the job details it reads from the page (sent to the user's own JobTrack server for the duplicate check and, on Save, to store the job) and the user's name and email (received from JobTrack and shown in the popup).
 
-| Data Type                    | Collected? | Transmitted Off-Device?                        | Purpose                                                                                          | Shared with Third Parties? |
-| ---------------------------- | ---------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------- |
-| Personally identifiable info | Yes        | No (received from JobTrack, not sent anywhere) | Shows which JobTrack account the job is saved to (name and email, not stored by the extension)   | No                         |
-| Authentication info          | Yes        | Yes (to JobTrack only)                         | Connection token that authorizes saving                                                          | No                         |
-| Website content              | Yes        | Yes (to JobTrack only)                         | Job details from the open page: checked for duplicates when the popup opens, stored only on Save | No                         |
-| Web history                  | Yes        | Yes (to JobTrack only)                         | The open posting's URL: duplicate check, and saved with the job on Save                          | No                         |
-| Other categories             | No         | No                                             |                                                                                                  | No                         |
+| Data Type                    | Collected? | Transmitted Off-Device?                        | Purpose                                                                                                                                                                            | Shared with Third Parties? |
+| ---------------------------- | ---------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| Personally identifiable info | Yes        | No (received from JobTrack, not sent anywhere) | Shows which JobTrack account the job is saved to (name and email, not stored by the extension)                                                                                     | No                         |
+| Authentication info          | Yes        | Yes (to JobTrack only)                         | Connection token that authorizes saving                                                                                                                                            | No                         |
+| Website content              | Yes        | Yes (to JobTrack only)                         | Job details from the open page: checked for duplicates when the popup opens, stored only on Save                                                                                   | No                         |
+| Web history                  | Yes        | Yes (to JobTrack only)                         | The open posting's URL: duplicate check, and saved with the job on Save. With auto-detect on, supported job sites' tab URLs are checked on the device for the badge and never sent | No                         |
+| Other categories             | No         | No                                             |                                                                                                                                                                                    | No                         |
 
 - [x] Data is NOT sold to third parties
 - [x] Data is NOT used for purposes unrelated to the extension's core functionality

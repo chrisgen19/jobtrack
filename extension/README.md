@@ -12,6 +12,12 @@ review form, then saves only when you click **Save job**.
 
   Fields that were guessed show a **check** marker until you edit them. Text you highlight on the page becomes the
   description.
+- **Side panel:** press **Alt+Shift+J**, right-click the page and choose **Save job to JobTrack**, or use the panel
+  button in the popup. The panel stays open beside the page, follows the tab you switch to, and on split-view search
+  pages follows the job you click.
+- **Right-click selected text** → **Use selection as job description**.
+- **Auto-detect job sites** (toggle under the form, off by default): grants the optional job-site permissions, so
+  job pages get a **JOB** badge and the side panel reads them without pressing the shortcut first.
 - **Split views:** on LinkedIn (`currentJobId`), JobStreet (`jobId`) and Indeed (`vjk`) search pages, the selected job
   is read, and the saved link points to that job, not to the search.
 - **Duplicates:** warns when you already saved the same posting link, or the same title at the same company.
@@ -81,9 +87,13 @@ token on the server too. A revoked token returns 401 and the popup asks to conne
 
 | Permission                   | Why                                                                                   |
 | ---------------------------- | ------------------------------------------------------------------------------------- |
-| `activeTab`                  | Read the current page, only after the user opens the popup on it                      |
-| `scripting`                  | Run the one-off reader on that page (no persistent content scripts)                   |
-| `storage`                    | Keep the token (local) and the connect nonce and unsaved drafts (session)              |
+| `activeTab`                  | Read the current page, only after the user opens the popup, presses the shortcut or uses the context menu on it |
+| `scripting`                  | Run the reader on that page; while the side panel is open, a URL watcher (no persistent content scripts) |
+| `storage`                    | Keep the token (local) and the connect nonce, unsaved drafts and a picked selection (session) |
+| `contextMenus`               | "Save job to JobTrack" and "Use selection as job description"                          |
+| `sidePanel`                  | The review form beside the page (added by WXT for `entrypoints/sidepanel`)             |
+| `commands`                   | Alt+Shift+J opens the side panel (change it at `chrome://extensions/shortcuts`)        |
+| optional: job-site hosts     | Only after "Auto-detect job sites": the badge, and reading those sites without a click (`src/lib/extract/sites/hosts.ts`) |
 | host `<WXT_JOBTRACK_URL>/*`  | Call the JobTrack API; no other site is reachable                                     |
 | `externally_connectable`     | Let the JobTrack connect page, and no other site, hand over the token                 |
 
@@ -94,6 +104,19 @@ token on the server too. A revoked token returns 401 and the popup asks to conne
   before saving.
 - Adapters depend on each site's markup and page data. LinkedIn's signed-in class names change often, and Indeed's
   selectors are untested (it blocks automated browsers); misses fall back to the generic reader.
+
+## Side panel and access
+
+Opening the side panel by itself grants no access to the page. Chrome grants `activeTab` for the toolbar button, the
+context menu and the shortcut. So without auto-detect, the panel shows **Read this page** with the user's shortcut
+for tabs it can't read yet.
+
+- **Who opens the panel:** the background worker (`lib/background/panel-triggers.ts`). It calls `sidePanel.open()`
+  first in the event handler, while the click still counts as a user gesture, then tells an open panel to read the
+  tab again.
+- **Following the tab:** `lib/use-panel-tab.ts` follows the panel window's active tab. It re-reads when the job
+  changes (`pageKeyFor`): the injected watcher (`lib/extract/watch-url.ts`) reports split-view clicks.
+- **Keeping edits:** each job keeps its own unsaved draft.
 
 ## How extraction works
 
