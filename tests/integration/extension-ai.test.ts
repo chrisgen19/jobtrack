@@ -180,7 +180,12 @@ describe("extension: Improve with AI", () => {
     expect((await extract(token, {})).status).toBe(503);
     expect((await usage(user.id))?.requests).toBe(0);
 
-    model.mockResolvedValueOnce({ output: null, stopReason: "incomplete", inputTokens: 900, outputTokens: 5 });
+    model.mockResolvedValueOnce({
+      output: null,
+      stopReason: "incomplete",
+      inputTokens: 900,
+      outputTokens: 5,
+    });
     expect((await extract(token, {})).status).toBe(422);
     expect((await usage(user.id))?.requests).toBe(1);
   });
