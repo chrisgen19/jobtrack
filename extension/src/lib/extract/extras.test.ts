@@ -51,6 +51,29 @@ describe("v0.2 fields from JSON-LD", () => {
     );
     expect(draft).toMatchObject({ requiredSkills: ["SQL", "Python"], referenceCode: "", companyWebsite: "" });
   });
+
+  it("finds the employer's website past job board links in sameAs and url", () => {
+    const websiteFor = (hiringOrganization: Record<string, unknown>) =>
+      buildDraft(
+        snapshotOf({
+          url: "https://careers.acme.test/jobs/3",
+          jsonLd: [posting({ hiringOrganization: { name: "Acme", ...hiringOrganization } })],
+        }),
+      ).draft.companyWebsite;
+
+    expect(websiteFor({ sameAs: "https://www.linkedin.com/company/acme", url: "https://acme.test" })).toBe(
+      "https://acme.test",
+    );
+    expect(websiteFor({ sameAs: ["https://www.linkedin.com/company/acme", "https://acme.test"] })).toBe(
+      "https://acme.test",
+    );
+    expect(
+      websiteFor({
+        sameAs: ["https://www.linkedin.com/company/acme"],
+        url: "https://ph.jobstreet.com/companies/acme",
+      }),
+    ).toBe("");
+  });
 });
 
 describe("contact and defaults", () => {

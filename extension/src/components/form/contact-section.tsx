@@ -27,19 +27,21 @@ export function ContactSection({ values, errors, guessed, set }: SectionProps) {
               onChange={(event) => set("contactName", event.target.value)}
             />
           </Field>
-          <Field id="contactKind" label="Role">
+          <Field id="contactKind" label="Role" error={errors.contactKind}>
             <Select
               id="contactKind"
               options={options(CONTACT_KIND_LABEL)}
               value={values.contactKind}
+              invalid={!!errors.contactKind}
               onChange={(event) => set("contactKind", event.target.value as DraftValues["contactKind"])}
             />
           </Field>
-          <Field id="contactTitle" label="Job title" className="col-span-2">
+          <Field id="contactTitle" label="Job title" error={errors.contactTitle} className="col-span-2">
             <TextInput
               id="contactTitle"
               maxLength={120}
               value={values.contactTitle}
+              invalid={!!errors.contactTitle}
               onChange={(event) => set("contactTitle", event.target.value)}
             />
           </Field>
@@ -53,6 +55,7 @@ export function ContactSection({ values, errors, guessed, set }: SectionProps) {
               id="contactEmail"
               type="email"
               value={values.contactEmail}
+              invalid={!!errors.contactEmail}
               onChange={(event) => set("contactEmail", event.target.value)}
             />
           </Field>
@@ -62,6 +65,7 @@ export function ContactSection({ values, errors, guessed, set }: SectionProps) {
               type="url"
               placeholder="https://www.linkedin.com/in/..."
               value={values.contactLinkedinUrl}
+              invalid={!!errors.contactLinkedinUrl}
               onChange={(event) => set("contactLinkedinUrl", event.target.value)}
             />
           </Field>
