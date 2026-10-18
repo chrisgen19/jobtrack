@@ -144,6 +144,24 @@ describe("extension: Improve with AI", () => {
     expect(JSON.stringify(cache)).not.toContain(SECRET_PHRASE);
   });
 
+  it("asks again for a different page title, and drops a cached deadline that has passed", async () => {
+    const { user, token } = await connectedUser();
+    await extract(token, { pageTitle: "Backend Developer | Acme" });
+    const retitled = await (await extract(token, { pageTitle: "Senior Backend Developer" })).json();
+    expect(retitled.cached).toBe(false);
+    expect(model).toHaveBeenCalledTimes(2);
+
+    // Cache rows whose "apply by tomorrow" deadline is now in the past.
+    for (const row of await prisma.aiExtractionCache.findMany({ where: { userId: user.id } })) {
+      const result = { ...(row.result as object), deadline: "2000-01-01" };
+      await prisma.aiExtractionCache.update({ where: { id: row.id }, data: { result } });
+    }
+    const again = await (await extract(token, { pageTitle: "Senior Backend Developer" })).json();
+    expect(again.cached).toBe(true);
+    expect(again.suggestions).toMatchObject({ title: "Backend Developer" });
+    expect(again.suggestions).not.toHaveProperty("deadline");
+  });
+
   it("stops at the daily and monthly limits", async () => {
     vi.mocked(ai.aiSettings).mockReturnValue({ ...settings, dailyRequestsPerUser: 1 });
     const { token } = await connectedUser();

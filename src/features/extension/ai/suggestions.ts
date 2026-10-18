@@ -113,3 +113,14 @@ export function withoutFilled(
     Object.entries(suggestions).filter(([key]) => !skip.has(key)),
   ) as ExtensionAiSuggestions;
 }
+
+/**
+ * A cached answer as of today: a deadline that has passed since it was cached
+ * (say "apply by tomorrow", asked again a few days later) is left out.
+ */
+export function stillCurrent(suggestions: ExtensionAiSuggestions, today: string): ExtensionAiSuggestions {
+  if (!suggestions.deadline || suggestions.deadline >= today) return suggestions;
+  const current = { ...suggestions };
+  delete current.deadline;
+  return current;
+}

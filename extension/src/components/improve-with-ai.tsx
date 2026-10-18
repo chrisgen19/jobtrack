@@ -16,7 +16,11 @@ export const MIN_AI_TEXT = 200;
 
 const isFilled = (value: unknown) => (Array.isArray(value) ? value.length > 0 : Boolean(value));
 
-/** Suggestions for fields the form still has empty (a contact name also switches on saving the contact). */
+/**
+ * Suggestions for fields the form still has empty (a contact name also
+ * switches on saving the contact). Run it on the values as they are when the
+ * answer arrives, so whatever the user typed meanwhile is kept.
+ */
 export function suggestionPatch(
   values: DraftValues,
   suggestions: ExtensionAiSuggestions,
@@ -29,10 +33,15 @@ export function suggestionPatch(
   return patch as Partial<DraftValues>;
 }
 
+/** The form fields a patch fills (saveContact is a switch, not a field). */
+export const patchedFields = (patch: Partial<DraftValues>) =>
+  (Object.keys(patch) as (keyof DraftValues)[]).filter((key) => key !== "saveContact");
+
 type Props = {
   me: ExtensionMe;
   values: DraftValues;
-  onApply: (patch: Partial<DraftValues>) => void;
+  /** Fills the fields that are still empty and returns how many it filled. */
+  onApply: (suggestions: ExtensionAiSuggestions) => number;
 };
 
 /**
@@ -80,9 +89,7 @@ export function ImproveWithAi({ me, values, onApply }: Props) {
         },
         abort.current.signal,
       );
-      const patch = suggestionPatch(values, result.suggestions);
-      const count = Object.keys(patch).filter((key) => key !== "saveContact").length;
-      onApply(patch);
+      const count = onApply(result.suggestions);
       setState({
         busy: false,
         message: count

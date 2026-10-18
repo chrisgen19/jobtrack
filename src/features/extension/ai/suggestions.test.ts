@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildUserMessage, sanitizePageText, type AiExtraction } from "./prompt";
-import { toSuggestions, withoutFilled } from "./suggestions";
+import { stillCurrent, toSuggestions, withoutFilled } from "./suggestions";
 
 const empty: AiExtraction = {
   title: null,
@@ -93,6 +93,16 @@ describe("withoutFilled", () => {
       salaryPeriod: "MONTHLY",
     });
     expect(withoutFilled(suggestions, ["salaryMax"])).toEqual({ title: "A", location: "B" });
+  });
+});
+
+describe("stillCurrent", () => {
+  it("drops a cached deadline that has passed and keeps everything else", () => {
+    const cached = { title: "A", deadline: "2026-10-17" };
+    expect(stillCurrent(cached, TODAY)).toEqual({ title: "A" });
+    expect(cached).toHaveProperty("deadline"); // the cached value itself is untouched
+    expect(stillCurrent({ title: "A", deadline: TODAY }, TODAY)).toEqual({ title: "A", deadline: TODAY });
+    expect(stillCurrent({ title: "A" }, TODAY)).toEqual({ title: "A" });
   });
 });
 

@@ -13,6 +13,7 @@ import { DetailsSection } from "./form/details-section";
 import { MoreSection } from "./form/more-section";
 import { SalarySection } from "./form/salary-section";
 import { ImproveWithAi } from "./improve-with-ai";
+import { useApplySuggestions } from "./use-apply-suggestions";
 import { useFieldMarks } from "./use-field-marks";
 
 const STATUS_NOTICE: Record<PageStatus, string | null> = {
@@ -110,11 +111,10 @@ export function JobForm({
   }
 
   // AI suggestions fill empty fields and mark them; editing one clears its mark like any other.
-  const applySuggestions = (patch: Partial<DraftValues>) => {
+  const applySuggestions = useApplySuggestions(values, setValues, (fields) => {
     setEdited(true);
-    setValues((current) => ({ ...current, ...patch }));
-    markAi((Object.keys(patch) as (keyof DraftValues)[]).filter((key) => key !== "saveContact"));
-  };
+    markAi(fields);
+  });
   const sectionProps = { values, errors, marks, set };
   // Older servers (contract v0.1) don't send followUpDays and would drop these fields.
   const extras = me.followUpDays !== undefined;

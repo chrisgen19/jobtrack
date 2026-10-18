@@ -16,7 +16,7 @@ import {
   requestsThisMonth,
   reserveRequest,
 } from "./quota";
-import { toSuggestions, withoutFilled } from "./suggestions";
+import { stillCurrent, toSuggestions, withoutFilled } from "./suggestions";
 
 export type ExtractOutcome =
   { ok: true; result: ExtensionExtractResult } | { ok: false; status: 403 | 422 | 429 | 503; error: string };
@@ -28,9 +28,21 @@ type Input = Required<Pick<ExtensionExtractRequest, "text">> &
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
-/** Same posting text and link, model and prompt -> same suggestions (form contents aren't part of it). */
+/**
+ * Same posting text, link and page title, model and prompt -> same suggestions
+ * (form contents aren't part of it). Today isn't either, so the cache lasts its
+ * full week: date-derived fields are checked again when served instead.
+ */
 const cacheKeyOf = (model: string, input: Input) =>
-  sha256([PROMPT_VERSION, model, normalizePostingUrl(input.postingUrl) ?? "", sha256(input.text)].join("|"));
+  sha256(
+    [
+      PROMPT_VERSION,
+      model,
+      normalizePostingUrl(input.postingUrl) ?? "",
+      sha256(input.pageTitle ?? ""),
+      sha256(input.text),
+    ].join("|"),
+  );
 
 const fail = (status: 403 | 422 | 429 | 503, error: string): ExtractOutcome => ({ ok: false, status, error });
 
@@ -57,7 +69,11 @@ export async function suggestJobFields(
     const remainingToday = Math.max(0, env.dailyRequestsPerUser - (await requestsOn(user.id, today)));
     return {
       ok: true,
-      result: { suggestions: withoutFilled(cached, input.filledFields), cached: true, remainingToday },
+      result: {
+        suggestions: withoutFilled(stillCurrent(cached, today), input.filledFields),
+        cached: true,
+        remainingToday,
+      },
     };
   }
   if ((await requestsThisMonth(today)) >= env.monthlyRequestLimit) {
