@@ -88,11 +88,11 @@ export async function loadReview(tab: TabRef | null, options: LoadOptions = {}):
       me,
       tabId: tab?.id ?? null,
       pageUrl,
-      initial: saved ? { ...defaults, ...saved } : defaults,
+      initial: saved ? { ...defaults, ...saved.values } : defaults,
       pageTitle: built?.draft.title ?? null,
       status: built?.status ?? "unreadable",
-      // An edited draft was reviewed already; only fresh prefills are flagged.
-      guessed: saved ? [] : (built?.guessed ?? []),
+      // A draft keeps flagging only the prefilled fields the user hasn't edited.
+      guessed: saved ? saved.guessed : (built?.guessed ?? []),
     };
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) return { kind: "connect", notice: error.message };
