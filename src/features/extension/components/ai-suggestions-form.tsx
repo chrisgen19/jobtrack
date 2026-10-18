@@ -31,7 +31,7 @@ export function AiSuggestionsForm({ enabled, available }: Props) {
           </label>
           <span className="mt-1 block text-[11px] leading-relaxed text-[#98a69c]">
             {available
-              ? "When you click Improve with AI in the extension, the posting's text and link are sent from your JobTrack server to Anthropic (Claude) to suggest the fields the page didn't give. Suggestions are labelled, and nothing is saved until you review it."
+              ? "When you click Improve with AI in the extension, the posting's text and link are sent from your JobTrack server to Google (Gemini API) to suggest the fields the page didn't give. Suggestions are labelled, and nothing is saved until you review it."
               : "Not set up on this JobTrack server."}
           </span>
         </div>

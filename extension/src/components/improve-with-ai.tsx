@@ -46,7 +46,7 @@ type Props = {
 
 /**
  * "Improve with AI": sends the description (and the names of the fields
- * already filled, not their values) to JobTrack, which asks Claude for the
+ * already filled, not their values) to JobTrack, which asks Gemini for the
  * missing ones. Opt-in in JobTrack's Settings; hidden when the server has no AI.
  */
 export function ImproveWithAi({ me, values, onApply }: Props) {
@@ -116,7 +116,7 @@ export function ImproveWithAi({ me, values, onApply }: Props) {
         <span className="min-w-0 flex-1 text-[10px] leading-snug text-faint">
           {tooShort
             ? "Needs a longer description (select the posting text on the page)."
-            : "Sends the description to Claude via JobTrack."}
+            : "Sends the description to Google Gemini via JobTrack."}
         </span>
       </div>
       {state.message ? <Notice tone={state.tone ?? "info"}>{state.message}</Notice> : null}

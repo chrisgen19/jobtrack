@@ -391,7 +391,7 @@ model UserPreferences {
   suggestFollowUps         Boolean   @default(true) @map("suggest_follow_ups")
   followUpDays             Int       @default(7) @map("follow_up_days")
   calendarSyncTasks        Boolean   @default(false) @map("calendar_sync_tasks")
-  /// Opt-in to "Improve with AI" in the browser extension (posting text goes to Anthropic).
+  /// Opt-in to "Improve with AI" in the browser extension (posting text goes to Google Gemini).
   aiSuggestions            Boolean   @default(false) @map("ai_suggestions")
   /// When the user last turned aiSuggestions on (consent record).
   aiConsentAt              DateTime? @map("ai_consent_at") @db.Timestamptz(3)

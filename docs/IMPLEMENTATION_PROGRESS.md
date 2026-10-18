@@ -376,15 +376,21 @@ PR 4, opt-in "Improve with AI" (`feature/extension-ai-suggestions`, stacked on P
 - [x] Scope: labelled, opt-in help for filling form fields from text the user already has on screen, reviewed
       before saving. It is not the "speculative AI automation" the PRD rules out, and it follows BACKLOG AI-01
       (opt-in, third-party processing disclosed).
-- [x] `@anthropic-ai/sdk` 0.131.0. `src/lib/integrations/anthropic/client.ts` is the only code that calls it:
-  - `messages.parse` with a Zod structured output, `effort: "low"`, and thinking off on Haiku; no tools, 1 retry, the
-    timeout from env.
-  - The key is passed explicitly, so a local `ant` login can't switch the feature on.
-  - SDK errors are sorted into busy, config and rejected. A refusal, a cut-off answer or unparsable output means "no
-    answer".
-- [x] Env (`aiEnv()`, off without a key): `ANTHROPIC_API_KEY`, `AI_MODEL` (default `claude-haiku-5-5`),
+- [x] Provider: Google Gemini, switched from Anthropic before release (2026-10-18). No SDK:
+      `src/lib/integrations/gemini/client.ts` calls the Interactions API (`POST /v1beta/interactions`, GA since June 2026) over fetch, like the Google Calendar client:
+  - Structured output via `response_format` with the JSON Schema from `z.toJSONSchema(aiExtractionSchema)` (no
+    `$schema` key), and the answer re-parsed with the same Zod schema.
+  - `store: false`, no tools, `max_output_tokens` 2000, `thinking_level` "minimal" on Flash-Lite and "low" otherwise,
+    the timeout from env, no retries.
+  - HTTP errors are sorted into busy (429, 408, 5xx, network, timeout), config (401, 402, 403, 404,
+    `failed_precondition`) and rejected. A status other than `completed` (for example `incomplete` at the token
+    limit) or output that doesn't match the schema means "no answer". Thinking tokens count as output tokens.
+  - The key needs a Google project with billing enabled (paid tier): free-tier prompts are used to improve Google's
+    products.
+- [x] Env (`aiEnv()`, off without a key): `GEMINI_API_KEY`, `AI_MODEL` (default `gemini-3.8-flash`),
       `AI_DAILY_REQUESTS_PER_USER` (25), `AI_MONTHLY_REQUEST_LIMIT` (3000), `AI_TIMEOUT_MS` (20000). Documented in
-      `.env.example`.
+      `.env.example` and passed to the `web` service in `compose.prod.yml` (missing before the switch, so the feature
+      could not have been turned on in production).
 - [x] Migration `extension_ai_suggestions`:
   - `user_preferences.ai_suggestions` and `ai_consent_at`.
   - `ai_usage`: per user and local day, with a CHECK on the counts.
@@ -398,9 +404,9 @@ PR 4, opt-in "Improve with AI" (`feature/extension-ai-suggestions`, stacked on P
   - Each output field is re-validated, and fields the form already has are dropped. The salary fields go as a group.
   - Logs carry IDs, the stop reason and token counts only.
 - [x] `/me` sends `features.ai {available, enabled}`.
-- [x] Settings → Browser extension: an "Improve with AI" switch with the Anthropic disclosure, disabled when the
+- [x] Settings → Browser extension: an "Improve with AI" switch with the Google (Gemini) disclosure, disabled when the
       server has no key. The consent time is recorded, and the privacy note is updated.
-- [x] Connect page, `CHROMEWEBSTORE.md` (Anthropic as a third party, opt-in), `docs/SECURITY.md` (control and
+- [x] Connect page, `CHROMEWEBSTORE.md` (Google as a third party, opt-in), `docs/SECURITY.md` (control and
       residual risk 10), `docs/DATA_MODEL.md`, `extension/README.md`.
 - [x] Extension:
   - "Improve with AI" button at the top of the form, or a link to turn it on.
@@ -419,17 +425,18 @@ Verification:
     - Refund on a provider error; a refusal counts.
     - Short text is rejected (400), and the posting text never appears in the logs.
   - `ai/suggestions.test.ts`: per-field validation, choice fields, salary group, tag escaping.
-  - `anthropic/client.test.ts`, against the real SDK classes: request parameters (Haiku, thinking off, low effort,
-    JSON schema, no `temperature` or tools) and error sorting.
+  - `gemini/client.test.ts`, with `fetch` mocked: request body (model, `store: false`, thinking level, JSON schema,
+    no tools), reading the output step, `incomplete` and unparsable answers, error sorting and caller aborts.
 - Extension Vitest: 98 tests.
-- The schema `zodOutputFormat` generates is strict JSON Schema: 18 required fields, `additionalProperties: false`.
-  The SDK can't enforce nullable enums, so those are plain strings checked by the server.
+- The schema `z.toJSONSchema` generates: 18 required fields, nullable ones as `["string", "null"]`,
+  `additionalProperties: false`, all within Gemini's supported subset. The choice fields stay plain strings checked
+  by the server, so one bad value doesn't discard the whole answer.
 - Real Chromium, built extension, side panel page, live LinkedIn job, API mocked:
   - The description and six filled field names were sent.
   - Three empty fields were filled and marked AI; the real title was not replaced; editing a field cleared its mark.
   - Layout checked at 360 px.
 - Not verified:
-  - A real Claude call: no API key on this machine. Run one posting end to end after setting `ANTHROPIC_API_KEY`
+  - A real Gemini call: no API key on this machine. Run one posting end to end after setting `GEMINI_API_KEY`
     locally.
   - The Settings page in a browser: the running dev server needs a restart to load the regenerated Prisma client.
 

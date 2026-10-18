@@ -7,7 +7,7 @@ import { listExtensionTokens } from "@/features/extension/tokens";
 import { SettingsCard } from "@/features/settings/components/settings-card";
 import { requireWorkspace } from "@/features/workspace/data";
 import { formatInTimeZone } from "@/lib/dates";
-import { isAiConfigured } from "@/lib/integrations/anthropic/client";
+import { isAiConfigured } from "@/lib/integrations/gemini/client";
 
 export const metadata: Metadata = { title: "Browser extension" };
 
@@ -27,8 +27,8 @@ export default function ExtensionSettingsPage() {
         Privacy: the extension reads a page only when you open it on that page. It then checks the
         posting&apos;s link, title and company against your saved jobs, and saves nothing until you review the
         details and click Save. It can save jobs and check for duplicates, but can&apos;t read the rest of
-        your workspace. With Improve with AI on, the posting&apos;s text goes to Anthropic only when you click
-        it.
+        your workspace. With Improve with AI on, the posting&apos;s text goes to Google (Gemini) only when you
+        click it.
       </p>
     </SettingsCard>
   );

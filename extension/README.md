@@ -32,10 +32,10 @@ review form, then saves only when you click **Save job**.
   - A contact already at that company with the same LinkedIn profile or email is reused.
 - **To-do** (jobs not applied to yet): "Apply by" or "Follow up on" a date, defaulting to the deadline or your
   follow-up days. It has a reminder like any JobTrack task.
-- **Improve with AI** (opt-in): when the server has `ANTHROPIC_API_KEY` and you turn it on under Settings → Browser
+- **Improve with AI** (opt-in): when the server has `GEMINI_API_KEY` and you turn it on under Settings → Browser
   extension, the form gets an **Improve with AI** button.
   - It sends the description and the names of the fields already filled (not their values) to `POST
-    /api/extension/v1/extract`. The server asks Claude (`claude-haiku-5-5` by default) for the rest.
+    /api/extension/v1/extract`. The server asks Google Gemini (`gemini-3.8-flash` by default, `AI_MODEL` to change it) for the rest.
   - Suggestions fill only empty fields and are marked **AI**. Nothing is saved until you click Save.
   - A daily quota per user (`AI_DAILY_REQUESTS_PER_USER`, default 25) and a monthly cap per server
     (`AI_MONTHLY_REQUEST_LIMIT`, default 3000) apply. Asking again about the same posting within a week is served

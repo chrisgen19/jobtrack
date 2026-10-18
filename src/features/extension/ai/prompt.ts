@@ -6,9 +6,8 @@ export const PROMPT_VERSION = 1;
 /**
  * What the model returns (structured output). Every field is required but
  * nullable, so the model says "not stated" explicitly instead of omitting.
- * The choice fields are plain strings: the SDK can't enforce a nullable enum
- * in the API schema, and a strict one here would throw the whole answer away
- * over one bad value. toSuggestions() checks them instead.
+ * The choice fields are plain strings: a strict enum here would throw the
+ * whole answer away over one bad value. toSuggestions() checks them instead.
  */
 export const aiExtractionSchema = z.object({
   title: z.string().nullable(),

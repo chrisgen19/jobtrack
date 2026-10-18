@@ -92,18 +92,21 @@ URL valid for 60 seconds. The browser talks to R2 only for that redirect.
    openssl rand -base64 32   # TOKEN_ENCRYPTION_KEY (must decode to exactly 32 bytes)
    ```
 
-   | Variable                                                                  | Example / note                                                                 |
-   | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-   | `APP_URL`                                                                 | `https://jobs.example.com` (no trailing slash)                                 |
-   | `DATABASE_URL`                                                            | internal URL from step 2                                                       |
-   | `BETTER_AUTH_SECRET`                                                      | 32+ random characters                                                          |
-   | `TOKEN_ENCRYPTION_KEY`                                                    | base64 of 32 random bytes; rotating it invalidates stored Google tokens        |
-   | `TRUSTED_IP_HEADER`                                                       | `x-real-ip` (Traefik). Use `cf-connecting-ip` if Cloudflare proxies the domain |
-   | `RESEND_API_KEY`, `EMAIL_FROM`, `RESEND_WEBHOOK_SECRET`                   | see step 4                                                                     |
-   | `S3_*`                                                                    | see step 3                                                                     |
-   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                | optional                                                                       |
-   | `EXTENSION_IDS`                                                           | optional: Chrome extension IDs allowed to connect, comma separated (step 10)   |
-   | `WEB_DATABASE_POOL_MAX`, `WORKER_DATABASE_POOL_MAX`, `WORKER_CONCURRENCY` | defaults 10 / 7 / 5                                                            |
+   | Variable                                                                  | Example / note                                                                                                                  |
+   | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+   | `APP_URL`                                                                 | `https://jobs.example.com` (no trailing slash)                                                                                  |
+   | `DATABASE_URL`                                                            | internal URL from step 2                                                                                                        |
+   | `BETTER_AUTH_SECRET`                                                      | 32+ random characters                                                                                                           |
+   | `TOKEN_ENCRYPTION_KEY`                                                    | base64 of 32 random bytes; rotating it invalidates stored Google tokens                                                         |
+   | `TRUSTED_IP_HEADER`                                                       | `x-real-ip` (Traefik). Use `cf-connecting-ip` if Cloudflare proxies the domain                                                  |
+   | `RESEND_API_KEY`, `EMAIL_FROM`, `RESEND_WEBHOOK_SECRET`                   | see step 4                                                                                                                      |
+   | `S3_*`                                                                    | see step 3                                                                                                                      |
+   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                | optional                                                                                                                        |
+   | `EXTENSION_IDS`                                                           | optional: Chrome extension IDs allowed to connect, comma separated (step 10)                                                    |
+   | `GEMINI_API_KEY`                                                          | optional: turns on Improve with AI. Use a key from a Google project with billing enabled (free-tier prompts are used by Google) |
+   | `AI_MODEL`                                                                | optional: Gemini model id, default `gemini-3.8-flash`. Change it here and redeploy to switch models                             |
+   | `AI_DAILY_REQUESTS_PER_USER`, `AI_MONTHLY_REQUEST_LIMIT`, `AI_TIMEOUT_MS` | optional: defaults 25, 3000 and 20000                                                                                           |
+   | `WEB_DATABASE_POOL_MAX`, `WORKER_DATABASE_POOL_MAX`, `WORKER_CONCURRENCY` | defaults 10 / 7 / 5                                                                                                             |
 
    Mark secrets as **secret** in Coolify so they are hidden in the UI and logs. Never commit `.env` files.
 

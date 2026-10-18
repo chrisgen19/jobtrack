@@ -4,7 +4,7 @@ import type { ExtensionExtractRequest, ExtensionExtractResult } from "@jobtrack/
 import { normalizePostingUrl } from "@/features/opportunities/normalize";
 import type { Workspace } from "@/features/workspace/data";
 import { todayInTimeZone } from "@/lib/dates";
-import { aiSettings, AiProviderError, requestJobExtraction } from "@/lib/integrations/anthropic/client";
+import { aiSettings, AiProviderError, requestJobExtraction } from "@/lib/integrations/gemini/client";
 import { errorMessage, logger } from "@/lib/logger";
 import { buildUserMessage, PROMPT_VERSION } from "./prompt";
 import {

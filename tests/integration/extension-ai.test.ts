@@ -5,15 +5,15 @@ import type { AiExtraction } from "@/features/extension/ai/prompt";
 import { updateAiSuggestionsAction } from "@/features/extension/actions";
 import { issueExtensionToken } from "@/features/extension/tokens";
 import { completeOnboarding } from "@/features/workspace/data";
-import * as ai from "@/lib/integrations/anthropic/client";
+import * as ai from "@/lib/integrations/gemini/client";
 import { prisma } from "@/lib/prisma";
 import { createTestUser, resetDatabase } from "../support/db";
 import { signInAs, signOut } from "../support/session";
 
 vi.mock("@/lib/auth/session", async () => (await import("../support/session")).sessionMock);
 vi.mock("@/lib/revalidate", () => ({ revalidateWorkspace: vi.fn() }));
-vi.mock("@/lib/integrations/anthropic/client", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/integrations/anthropic/client")>();
+vi.mock("@/lib/integrations/gemini/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/integrations/gemini/client")>();
   return { ...actual, aiSettings: vi.fn(), isAiConfigured: vi.fn(), requestJobExtraction: vi.fn() };
 });
 
@@ -23,7 +23,7 @@ const POSTING = `We are hiring a backend developer (${SECRET_PHRASE}). ${"Own ou
 
 const settings = {
   apiKey: "test-key",
-  model: "claude-haiku-5-5",
+  model: "gemini-3.8-flash",
   dailyRequestsPerUser: 3,
   monthlyRequestLimit: 100,
   timeoutMs: 20_000,
@@ -83,7 +83,7 @@ describe("extension: Improve with AI", () => {
     vi.mocked(ai.isAiConfigured).mockReturnValue(true);
     model
       .mockReset()
-      .mockResolvedValue({ output: answer, stopReason: "end_turn", inputTokens: 1200, outputTokens: 180 });
+      .mockResolvedValue({ output: answer, stopReason: "completed", inputTokens: 1200, outputTokens: 180 });
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -174,13 +174,13 @@ describe("extension: Improve with AI", () => {
     expect(model).toHaveBeenCalledTimes(1);
   });
 
-  it("gives the request back on a provider error, and counts a refusal", async () => {
+  it("gives the request back on a provider error, and counts a cut-off answer", async () => {
     const { user, token } = await connectedUser();
     model.mockRejectedValueOnce(new ai.AiProviderError("busy", "overloaded"));
     expect((await extract(token, {})).status).toBe(503);
     expect((await usage(user.id))?.requests).toBe(0);
 
-    model.mockResolvedValueOnce({ output: null, stopReason: "refusal", inputTokens: 900, outputTokens: 5 });
+    model.mockResolvedValueOnce({ output: null, stopReason: "incomplete", inputTokens: 900, outputTokens: 5 });
     expect((await extract(token, {})).status).toBe(422);
     expect((await usage(user.id))?.requests).toBe(1);
   });
