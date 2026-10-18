@@ -1,13 +1,15 @@
-import { CheckCircle2, Link2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CheckCircle2, Keyboard, Link2 } from "lucide-react";
 import { browser } from "wxt/browser";
 import type { ExtensionSaveResult } from "@jobtrack/shared/extension-api";
+import { OPEN_PANEL_COMMAND } from "@/lib/messages";
 import { startConnect } from "@/lib/connect";
 import { Button, Notice } from "./fields";
 
-export function ConnectView({ notice }: { notice?: string }) {
+export function ConnectView({ notice, onStarted }: { notice?: string; onStarted: () => void }) {
   async function connect() {
     await startConnect();
-    window.close();
+    onStarted();
   }
   return (
     <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
@@ -23,7 +25,15 @@ export function ConnectView({ notice }: { notice?: string }) {
   );
 }
 
-export function SavedView({ result, title }: { result: ExtensionSaveResult; title: string }) {
+export function SavedView({
+  result,
+  title,
+  onDone,
+}: {
+  result: ExtensionSaveResult;
+  title: string;
+  onDone: () => void;
+}) {
   return (
     <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
       <CheckCircle2 className="size-9 text-brand" aria-hidden />
@@ -33,7 +43,7 @@ export function SavedView({ result, title }: { result: ExtensionSaveResult; titl
       </p>
       <div className="flex gap-2">
         <Button onClick={() => browser.tabs.create({ url: result.url })}>Open in JobTrack</Button>
-        <Button variant="outline" onClick={() => window.close()}>
+        <Button variant="outline" onClick={onDone}>
           Done
         </Button>
       </div>
@@ -47,6 +57,47 @@ export function ErrorView({ message, onRetry }: { message: string; onRetry: () =
       <Notice tone="error">{message}</Notice>
       <Button variant="outline" onClick={onRetry}>
         Try again
+      </Button>
+    </div>
+  );
+}
+
+/** The user's key for the "open-panel" command (they can change it at chrome://extensions/shortcuts). */
+function useShortcut(): string {
+  const [shortcut, setShortcut] = useState("");
+  useEffect(() => {
+    browser.commands
+      .getAll()
+      .then((commands) => setShortcut(commands.find((c) => c.name === OPEN_PANEL_COMMAND)?.shortcut ?? ""))
+      .catch(() => undefined);
+  }, []);
+  return shortcut;
+}
+
+/**
+ * Side panel on a tab the extension may not read yet: opening the panel by
+ * itself grants no access, only the shortcut, the context menu or the
+ * toolbar button do (or auto-detect on job sites).
+ */
+export function NoAccessView({ onManual }: { onManual: () => void }) {
+  const shortcut = useShortcut();
+  return (
+    <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
+      <Keyboard className="size-9 text-brand" aria-hidden />
+      <h1 className="text-[15px] font-bold text-heading">Read this page</h1>
+      <p className="text-xs leading-relaxed text-subtle">
+        {shortcut ? (
+          <>
+            Press <kbd className="rounded border border-line bg-surface-2 px-1 font-sans">{shortcut}</kbd>, or
+          </>
+        ) : (
+          "Set a shortcut at chrome://extensions/shortcuts, or"
+        )}{" "}
+        right-click the page and choose <strong>Save job to JobTrack</strong>. Browser pages and some sites
+        can&apos;t be read at all.
+      </p>
+      <Button variant="outline" onClick={onManual}>
+        Fill in the details myself
       </Button>
     </div>
   );

@@ -5,6 +5,10 @@ import { firstText, hostIs, type SiteAdapter } from "./adapter";
 export const lever: SiteAdapter = {
   id: "lever",
   matches: (url) => hostIs(url, "lever.co"),
+  jobRef(url) {
+    const id = url.pathname.match(/^\/[^/]+\/([0-9a-f]{8}-[0-9a-f-]{27})/i)?.[1];
+    return id ? { id, inList: false } : null;
+  },
   plan: {
     text: {
       workplace: ".posting-categories .workplaceTypes",

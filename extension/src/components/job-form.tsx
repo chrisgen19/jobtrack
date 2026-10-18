@@ -25,6 +25,9 @@ type Props = {
   pageUrl: string | null;
   status: PageStatus;
   guessed: (keyof DraftValues)[];
+  /** Text from the "Use selection as job description" menu item, applied as an edit (side panel). */
+  incomingDescription?: string | null;
+  onIncomingApplied?: () => void;
   onSaved: (result: ExtensionSaveResult, title: string) => void;
   onUnauthorized: (message: string) => void;
 };
@@ -35,6 +38,8 @@ export function JobForm({
   pageUrl,
   status,
   guessed: initialGuessed,
+  incomingDescription,
+  onIncomingApplied,
   onSaved,
   onUnauthorized,
 }: Props) {
@@ -51,6 +56,19 @@ export function JobForm({
   useEffect(() => {
     if (pageUrl && edited) scheduleDraftSave(pageUrl, { values, guessed: [...guessed] });
   }, [pageUrl, values, guessed, edited]);
+
+  // A menu selection arrives as a prop; apply it once, while rendering, then let the parent clear it.
+  const [appliedIncoming, setAppliedIncoming] = useState<string | null>(null);
+  if ((incomingDescription ?? null) !== appliedIncoming) {
+    setAppliedIncoming(incomingDescription ?? null);
+    if (incomingDescription) {
+      setEdited(true);
+      setValues((current) => ({ ...current, description: incomingDescription.slice(0, 20_000) }));
+    }
+  }
+  useEffect(() => {
+    if (appliedIncoming) onIncomingApplied?.();
+  }, [appliedIncoming, onIncomingApplied]);
 
   // Writes are batched, so write the last edits when the popup closes or the form goes away.
   useEffect(() => {

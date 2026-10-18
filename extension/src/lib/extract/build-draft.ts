@@ -4,7 +4,7 @@ import { mergeLayers } from "./merge";
 import { findSalaryInText } from "./parse/salary";
 import { arrangementFromLabel, arrangementFromText, employmentFromLabel } from "./parse/work";
 import type { JobRef } from "./sites/adapter";
-import { adapterFor } from "./sites/registry";
+import { adapterFor, jobLinkFor, pageKeyFor } from "./sites/registry";
 import type { PageSnapshot } from "./snapshot";
 import { isJobBoard, sourceFromUrl } from "./source";
 import { htmlToText, oneLine } from "./text";
@@ -108,7 +108,7 @@ export function buildDraft(snapshot: PageSnapshot, main: unknown = null): BuiltD
   const base = mergeLayers(layers);
   const merged = mergeLayers([...layers, textLayer(base.values, url?.hostname ?? "")]);
 
-  const jobUrl = url && job && adapter?.postingUrl ? adapter.postingUrl(url, job) : "";
+  const jobUrl = jobLinkFor(snapshot.url);
   // Some sites still declare an http:// canonical link on https pages.
   const canonical =
     url?.protocol === "https:"
@@ -135,6 +135,6 @@ export function buildDraft(snapshot: PageSnapshot, main: unknown = null): BuiltD
     draft,
     guessed: merged.guessed,
     status: trusted("title") && trusted("companyName") ? "found" : "partial",
-    pageKey: jobUrl || snapshot.url,
+    pageKey: pageKeyFor(snapshot.url),
   };
 }

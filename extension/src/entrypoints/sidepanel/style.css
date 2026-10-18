@@ -1,0 +1,7 @@
+@import "../../styles.css";
+
+/* The side panel is as wide as the user drags it (Chrome's minimum is about 320px). */
+html,
+body {
+  min-height: 100%;
+}

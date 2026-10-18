@@ -1,68 +1,55 @@
-import { useEffect, useState } from "react";
-import type { ExtensionSaveResult } from "@jobtrack/shared/extension-api";
+import { useCallback, useRef } from "react";
+import { PanelRight } from "lucide-react";
+import { browser } from "wxt/browser";
 import { Button } from "@/components/fields";
-import { Header } from "@/components/header";
-import { JobForm } from "@/components/job-form";
-import { ConnectView, ErrorView, SavedView } from "@/components/status-views";
-import { disconnect } from "@/lib/api";
-import { loadPopup, type PopupView } from "@/lib/load-popup";
+import { ReviewApp } from "@/components/review-app";
+import { loadReview } from "@/lib/load-review";
+import { PANEL_REFRESH, type PanelMessage } from "@/lib/messages";
+import { getActiveTab } from "@/lib/read-page";
 
-type View = PopupView | { kind: "saved"; result: ExtensionSaveResult; title: string };
+/**
+ * Moves the review to the side panel, which stays open while browsing. Must
+ * run before any `await` in the click handler: Chrome only allows
+ * sidePanel.open() during a user gesture. Opening the popup granted
+ * activeTab, so an already-open panel is told to read the tab again.
+ */
+function openSidePanel(tabId: number): void {
+  const opened = browser.sidePanel.open({ tabId }).catch(() => undefined);
+  const message: PanelMessage = { type: PANEL_REFRESH, tabId };
+  // Rejects when no panel is open yet; the panel reads the tab when it loads.
+  const sent = browser.runtime.sendMessage(message).catch(() => undefined);
+  void Promise.all([opened, sent]).then(() => window.close());
+}
 
 export function App() {
-  const [view, setView] = useState<View>({ kind: "loading" });
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      const next = await loadPopup();
-      if (active) setView(next);
-    })();
-    return () => {
-      active = false;
-    };
+  // Known before the button shows (it needs the form), so the click can open the panel right away.
+  const tabId = useRef<number | null>(null);
+  const load = useCallback(async () => {
+    const tab = await getActiveTab();
+    tabId.current = tab?.id ?? null;
+    return loadReview(tab);
   }, []);
-
-  async function retry() {
-    setView({ kind: "loading" });
-    setView(await loadPopup());
-  }
-
-  async function signOut() {
-    await disconnect();
-    setView({ kind: "connect" });
-  }
-
+  const onOpenPanel = () => {
+    if (tabId.current !== null) openSidePanel(tabId.current);
+    else window.close();
+  };
   return (
-    <div className="flex min-h-[200px] flex-col">
-      <Header
-        action={
-          view.kind === "form" ? (
-            <Button variant="ghost" className="px-1.5 py-1 text-[11px]" onClick={signOut}>
-              Disconnect
-            </Button>
-          ) : null
-        }
-      />
-      {view.kind === "loading" ? (
-        <p className="px-4 py-8 text-center text-xs text-subtle" role="status">
-          Reading this page...
-        </p>
-      ) : null}
-      {view.kind === "connect" ? <ConnectView notice={view.notice} /> : null}
-      {view.kind === "error" ? <ErrorView message={view.message} onRetry={retry} /> : null}
-      {view.kind === "saved" ? <SavedView result={view.result} title={view.title} /> : null}
-      {view.kind === "form" ? (
-        <JobForm
-          me={view.me}
-          initial={view.initial}
-          pageUrl={view.pageUrl}
-          status={view.status}
-          guessed={view.guessed}
-          onSaved={(result, title) => setView({ kind: "saved", result, title })}
-          onUnauthorized={(notice) => setView({ kind: "connect", notice })}
-        />
-      ) : null}
-    </div>
+    <ReviewApp
+      mode="popup"
+      load={load}
+      reloadSignal={1}
+      onClose={() => window.close()}
+      headerActions={
+        <Button
+          variant="ghost"
+          className="px-1.5 py-1"
+          title="Open in side panel"
+          aria-label="Open in side panel"
+          onClick={onOpenPanel}
+        >
+          <PanelRight className="size-4" aria-hidden />
+        </Button>
+      }
+    />
   );
 }

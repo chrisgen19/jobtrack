@@ -269,6 +269,56 @@ Verification:
   - SmartRecruiters (generic path only).
   - The toolbar `activeTab` path, still: CDP `Extensions.triggerAction` closes headless Chromium.
 
+PR 2, side panel (`feature/extension-side-panel`, stacked on PR 1):
+
+- [x] Side panel (`entrypoints/sidepanel`):
+  - It shares the review shell (`components/review-app.tsx`) and loader (`lib/load-review.ts`) with the popup.
+  - It follows the active tab of its window, and re-reads only when the job changes (`pageKeyFor`), so LinkedIn
+    tracking parameters don't reload the form.
+  - After a split-view click it reads again while the page still shows the previous job (up to 3 times, 500 ms
+    apart).
+  - Each job keeps its own unsaved draft.
+- [x] URL watcher (`lib/extract/watch-url.ts`): injected while the panel reads a page, reports `pushState` job
+      changes, and stops once nothing receives its messages.
+- [x] Opening the panel:
+  - Context menu: "Save job to JobTrack" and "Use selection as job description".
+  - The `open-panel` command, Alt+Shift+J.
+  - The popup's panel button.
+
+  `sidePanel.open()` runs first in each handler, while the click or key press counts as a user gesture. A selection
+  picked from the menu is applied to the form with its line breaks.
+
+- [x] "Read this page" screen in the panel for tabs it has no access to yet: it shows the user's actual shortcut
+      and offers to fill in the details by hand.
+- [x] "Auto-detect job sites" toggle (off by default):
+  - Requests the `optional_host_permissions` from `lib/extract/sites/hosts.ts`.
+  - Enables the **JOB** badge, set from tab URLs on the device.
+  - Lets the panel read those sites without a click first.
+- [x] Lever and OnlineJobs.ph adapters gained job IDs (for the badge).
+- [x] `CHROMEWEBSTORE.md` and `extension/README.md`: new permissions, the side panel and auto-detect.
+
+Verification:
+
+- Extension Vitest (85 tests):
+  - Every adapter has a job URL inside the optional host permissions.
+  - Page keys for split views.
+  - The panel's job-change check.
+  - Menu and command handlers open the panel synchronously and store the selection.
+  - Badge on and off.
+  - URL watcher, serialized: one install, `pushState` reported, stops without a receiver.
+- Real Chromium, built extension, JobTrack API mocked with Playwright routes, side panel page opened as a tab:
+  - With auto-detect granted: the badge shows "JOB" on a JobStreet split view, the panel follows the tab to the
+    selected job, and clicking another card switches the panel to that job (its own link). Layout checked at 360 px.
+  - Default build: no badge; the panel shows "Read this page" with ⌥⇧J; "Fill in the details myself" opens the
+    form.
+  - The context menu items and the command are registered.
+  - Popup header with the panel button at 380 px.
+- Not verified:
+  - The real side panel UI, opened from the toolbar, menu or shortcut: headless Chromium can't open it, and those
+    gestures can't be automated.
+  - Granting auto-detect through Chrome's permission prompt.
+  - Signed-in LinkedIn split views.
+
 ## Definition of Done status
 
 | #   | Step                                                        | Status                                                                   |
