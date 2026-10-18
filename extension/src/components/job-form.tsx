@@ -47,9 +47,10 @@ export function JobForm({
 
   // Keep this page's draft once the user changed something; untouched forms
   // are never stored, so opening the popup elsewhere can't replace a draft.
+  // The fields still flagged as guesses go with it, so reopening keeps them.
   useEffect(() => {
-    if (pageUrl && edited) scheduleDraftSave(pageUrl, values);
-  }, [pageUrl, values, edited]);
+    if (pageUrl && edited) scheduleDraftSave(pageUrl, { values, guessed: [...guessed] });
+  }, [pageUrl, values, guessed, edited]);
 
   // Writes are batched, so write the last edits when the popup closes or the form goes away.
   useEffect(() => {
