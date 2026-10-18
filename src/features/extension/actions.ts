@@ -6,8 +6,9 @@ import { requireUser } from "@/lib/auth/session";
 import { extensionEnv } from "@/lib/env";
 import { rateLimit } from "@/lib/rate-limit";
 import { revalidateWorkspace } from "@/lib/revalidate";
-import { uuid } from "@/lib/validations/common";
+import { formBoolean, uuid } from "@/lib/validations/common";
 import { requireWorkspace } from "@/features/workspace/data";
+import { setAiSuggestions } from "./data";
 import { issueExtensionToken, revokeExtensionToken } from "./tokens";
 
 /**
@@ -36,6 +37,19 @@ export async function revokeExtensionTokenAction(tokenId: string): Promise<Actio
   const id = uuid.safeParse(tokenId);
   if (!id.success) return validationFailure(id.error);
   const result = await runAction(() => revokeExtensionToken(id.data));
+  if (result.ok) revalidateWorkspace();
+  return result;
+}
+
+/** Settings → Browser extension: the "Improve with AI" opt-in. */
+export async function updateAiSuggestionsAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireUser();
+  const enabled = formBoolean.safeParse(formData.get("aiSuggestions"));
+  if (!enabled.success) return validationFailure(enabled.error);
+  const result = await runAction(() => setAiSuggestions(enabled.data));
   if (result.ok) revalidateWorkspace();
   return result;
 }

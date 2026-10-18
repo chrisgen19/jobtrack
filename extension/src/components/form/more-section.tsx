@@ -7,7 +7,7 @@ import { Field, Select, TextInput } from "../fields";
 import type { SectionProps } from "./section-props";
 
 /** Skills, tags, deadline, reference, pay basis and company website; open when the page filled any of them. */
-export function MoreSection({ values, errors, guessed, set }: SectionProps) {
+export function MoreSection({ values, errors, marks, set }: SectionProps) {
   const [open, setOpen] = useState(
     () =>
       values.requiredSkills.length > 0 ||
@@ -20,7 +20,12 @@ export function MoreSection({ values, errors, guessed, set }: SectionProps) {
         More details
       </summary>
       <div className="mt-2.5 flex flex-col gap-2.5">
-        <Field id="requiredSkills" label="Skills" error={errors.requiredSkills}>
+        <Field
+          id="requiredSkills"
+          mark={marks.get("requiredSkills")}
+          label="Skills"
+          error={errors.requiredSkills}
+        >
           <ChipsInput
             id="requiredSkills"
             values={values.requiredSkills}
@@ -41,7 +46,7 @@ export function MoreSection({ values, errors, guessed, set }: SectionProps) {
           />
         </Field>
         <div className="grid grid-cols-2 gap-2.5">
-          <Field id="deadline" label="Deadline" error={errors.deadline} guessed={guessed.has("deadline")}>
+          <Field id="deadline" label="Deadline" error={errors.deadline} mark={marks.get("deadline")}>
             <TextInput
               id="deadline"
               type="date"
@@ -50,7 +55,7 @@ export function MoreSection({ values, errors, guessed, set }: SectionProps) {
               onChange={(event) => set("deadline", event.target.value)}
             />
           </Field>
-          <Field id="salaryBasis" label="Pay basis" guessed={guessed.has("salaryBasis")}>
+          <Field id="salaryBasis" label="Pay basis" mark={marks.get("salaryBasis")}>
             <Select
               id="salaryBasis"
               placeholder="Not stated"
@@ -59,7 +64,12 @@ export function MoreSection({ values, errors, guessed, set }: SectionProps) {
               onChange={(event) => set("salaryBasis", event.target.value as DraftValues["salaryBasis"])}
             />
           </Field>
-          <Field id="referenceCode" label="Reference" error={errors.referenceCode}>
+          <Field
+            id="referenceCode"
+            mark={marks.get("referenceCode")}
+            label="Reference"
+            error={errors.referenceCode}
+          >
             <TextInput
               id="referenceCode"
               maxLength={80}
@@ -67,7 +77,12 @@ export function MoreSection({ values, errors, guessed, set }: SectionProps) {
               onChange={(event) => set("referenceCode", event.target.value)}
             />
           </Field>
-          <Field id="companyWebsite" label="Company website" error={errors.companyWebsite}>
+          <Field
+            id="companyWebsite"
+            mark={marks.get("companyWebsite")}
+            label="Company website"
+            error={errors.companyWebsite}
+          >
             <TextInput
               id="companyWebsite"
               type="url"

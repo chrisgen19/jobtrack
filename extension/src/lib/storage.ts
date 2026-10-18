@@ -1,5 +1,5 @@
 import { storage } from "wxt/utils/storage";
-import type { DraftValues } from "./draft";
+import type { DraftValues, FieldMarks } from "./draft";
 
 /** Extension token from the connect handshake (local: survives browser restarts). */
 export const tokenItem = storage.defineItem<string | null>("local:jobtrackToken", { fallback: null });
@@ -21,8 +21,12 @@ export const pendingSelectionItem = storage.defineItem<{ tabId: number; text: st
 
 /**
  * Unsaved review forms by page URL (session: cleared when the browser closes). See drafts.ts.
- * `guessed` lists the prefilled fields not reviewed yet; drafts stored before it existed lack it.
+ * `marks` holds the prefilled fields not reviewed yet ("check" or "ai"). Older drafts have
+ * `guessed` (check marks only) or neither.
  */
 export const draftsItem = storage.defineItem<
-  Record<string, { values: DraftValues; guessed?: (keyof DraftValues)[]; updatedAt: number }>
+  Record<
+    string,
+    { values: DraftValues; marks?: FieldMarks; guessed?: (keyof DraftValues)[]; updatedAt: number }
+  >
 >("session:drafts", { fallback: {} });

@@ -15,9 +15,9 @@ import { draftsItem } from "./storage";
 
 const A = "https://jobs.example.com/a";
 const B = "https://jobs.example.com/b";
-const draft = (title: string, guessed: SavedDraft["guessed"] = []): SavedDraft => ({
+const draft = (title: string, marks: SavedDraft["marks"] = {}): SavedDraft => ({
   values: { ...emptyDraft(), title },
-  guessed,
+  marks,
 });
 
 describe("per-page drafts", () => {
@@ -49,17 +49,21 @@ describe("per-page drafts", () => {
   });
 });
 
-describe("guessed fields in drafts", () => {
+describe("marked fields in drafts", () => {
   beforeEach(() => fakeBrowser.reset());
 
-  it("keeps the fields still flagged as guesses with the draft", async () => {
-    await saveDraft(A, draft("Edited title", ["salaryMin", "workArrangement"]));
-    expect((await loadDraft(A))?.guessed).toEqual(["salaryMin", "workArrangement"]);
+  it("keeps the fields still marked (guesses and AI suggestions) with the draft", async () => {
+    await saveDraft(A, draft("Edited title", { salaryMin: "check", workArrangement: "ai" }));
+    expect((await loadDraft(A))?.marks).toEqual({ salaryMin: "check", workArrangement: "ai" });
   });
 
-  it("loads a draft stored before guesses were kept with no flagged fields", async () => {
-    await draftsItem.setValue({ [A]: { values: draft("Old").values, updatedAt: 1_000 } });
-    expect(await loadDraft(A)).toEqual({ values: draft("Old").values, guessed: [] });
+  it("reads older drafts: guessed keys become check marks, none means no marks", async () => {
+    await draftsItem.setValue({
+      [A]: { values: draft("Old").values, guessed: ["salaryMin"], updatedAt: 1_000 },
+      [B]: { values: draft("Older").values, updatedAt: 1_000 },
+    });
+    expect((await loadDraft(A))?.marks).toEqual({ salaryMin: "check" });
+    expect(await loadDraft(B)).toEqual({ values: draft("Older").values, marks: {} });
   });
 });
 

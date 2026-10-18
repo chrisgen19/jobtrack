@@ -52,6 +52,12 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       # Chrome extension IDs allowed to connect (comma separated); empty disables it.
       EXTENSION_IDS: ${EXTENSION_IDS:-}
+      # "Improve with AI" (Google Gemini): an empty key turns it off. AI_MODEL is any Gemini model id.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-gemini-3.8-flash}
+      AI_DAILY_REQUESTS_PER_USER: ${AI_DAILY_REQUESTS_PER_USER:-25}
+      AI_MONTHLY_REQUEST_LIMIT: ${AI_MONTHLY_REQUEST_LIMIT:-3000}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-20000}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health/ready > /dev/null || exit 1"]
       interval: 30s

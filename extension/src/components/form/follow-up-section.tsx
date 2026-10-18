@@ -12,7 +12,7 @@ export function FollowUpSection({
   errors,
   set,
   today,
-}: Omit<SectionProps, "guessed"> & { today: string }) {
+}: Omit<SectionProps, "marks"> & { today: string }) {
   return (
     <div className="flex flex-col gap-2.5">
       <label className="flex items-center gap-2 text-xs font-bold text-ink">

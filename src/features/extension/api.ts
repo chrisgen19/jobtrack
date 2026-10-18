@@ -58,9 +58,12 @@ function tooManyRequests(retryAfterSeconds: number): Response {
   });
 }
 
-/** The request's JSON body (up to MAX_EXTENSION_BODY_BYTES), or the error response to return. */
-export async function readExtensionJson(request: Request): Promise<{ value: unknown } | { error: Response }> {
-  const body = await readJsonBody(request, MAX_EXTENSION_BODY_BYTES);
+/** The request's JSON body (up to MAX_EXTENSION_BODY_BYTES by default), or the error response to return. */
+export async function readExtensionJson(
+  request: Request,
+  maxBytes = MAX_EXTENSION_BODY_BYTES,
+): Promise<{ value: unknown } | { error: Response }> {
+  const body = await readJsonBody(request, maxBytes);
   if (body.ok) return { value: body.value };
   return {
     error:

@@ -1,4 +1,4 @@
-import type { DraftValues } from "./draft";
+import type { DraftValues, FieldMarks } from "./draft";
 import { draftsItem } from "./storage";
 
 /** Unsaved drafts kept per browser session; the least recently edited go first. */
@@ -7,8 +7,8 @@ export const MAX_DRAFTS = 20;
 /** Edits are written this long after the last change, not on every keystroke. */
 export const DRAFT_SAVE_DELAY_MS = 300;
 
-/** A page's unsaved edits plus the prefilled fields the user hasn't touched yet (still flagged). */
-export type SavedDraft = { values: DraftValues; guessed: (keyof DraftValues)[] };
+/** A page's unsaved edits plus the prefilled fields the user hasn't touched yet (still marked). */
+export type SavedDraft = { values: DraftValues; marks: FieldMarks };
 
 // Every draft read and write runs here, one at a time, so each one sees the
 // result of the previous one (they read, change and write the whole map).
@@ -24,7 +24,10 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
 export function loadDraft(pageUrl: string): Promise<SavedDraft | null> {
   return enqueue(async () => {
     const stored = (await draftsItem.getValue())[pageUrl];
-    return stored ? { values: stored.values, guessed: stored.guessed ?? [] } : null;
+    if (!stored) return null;
+    // Drafts written before marks were stored kept only the guessed keys.
+    const marks = stored.marks ?? Object.fromEntries((stored.guessed ?? []).map((key) => [key, "check"]));
+    return { values: stored.values, marks };
   });
 }
 

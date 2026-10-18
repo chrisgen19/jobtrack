@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { ExtensionMe, ExtensionSaveResult } from "@jobtrack/shared/extension-api";
 import { ApiError, saveJob } from "@/lib/api";
-import type { DraftValues, PageStatus } from "@/lib/draft";
+import type { DraftValues, PageStatus, FieldMarks } from "@/lib/draft";
 import { firstErrors, toPayload, validateDraft, type FieldErrors } from "@/lib/payload";
 import { flushDraftSave, removeDraft, scheduleDraftSave } from "@/lib/drafts";
 import { DuplicateWarning } from "./duplicate-warning";
@@ -12,6 +12,9 @@ import { ContactSection } from "./form/contact-section";
 import { DetailsSection } from "./form/details-section";
 import { MoreSection } from "./form/more-section";
 import { SalarySection } from "./form/salary-section";
+import { ImproveWithAi } from "./improve-with-ai";
+import { useApplySuggestions } from "./use-apply-suggestions";
+import { useFieldMarks } from "./use-field-marks";
 
 const STATUS_NOTICE: Record<PageStatus, string | null> = {
   found: null,
@@ -26,7 +29,7 @@ type Props = {
   initial: DraftValues;
   pageUrl: string | null;
   status: PageStatus;
-  guessed: (keyof DraftValues)[];
+  marks: FieldMarks;
   /** Text from the "Use selection as job description" menu item, applied as an edit (side panel). */
   incomingDescription?: string | null;
   onIncomingApplied?: () => void;
@@ -39,14 +42,14 @@ export function JobForm({
   initial,
   pageUrl,
   status,
-  guessed: initialGuessed,
+  marks: initialMarks,
   incomingDescription,
   onIncomingApplied,
   onSaved,
   onUnauthorized,
 }: Props) {
   const [values, setValues] = useState(initial);
-  const [guessed, setGuessed] = useState<ReadonlySet<keyof DraftValues>>(() => new Set(initialGuessed));
+  const { marks, clear, markAi } = useFieldMarks(initialMarks);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -54,10 +57,10 @@ export function JobForm({
 
   // Keep this page's draft once the user changed something; untouched forms
   // are never stored, so opening the popup elsewhere can't replace a draft.
-  // The fields still flagged as guesses go with it, so reopening keeps them.
+  // The fields still marked go with it, so reopening keeps their marks.
   useEffect(() => {
-    if (pageUrl && edited) scheduleDraftSave(pageUrl, { values, guessed: [...guessed] });
-  }, [pageUrl, values, guessed, edited]);
+    if (pageUrl && edited) scheduleDraftSave(pageUrl, { values, marks: Object.fromEntries(marks) });
+  }, [pageUrl, values, marks, edited]);
 
   // A menu selection arrives as a prop; apply it once, while rendering, then let the parent clear it.
   const [appliedIncoming, setAppliedIncoming] = useState<string | null>(null);
@@ -85,12 +88,7 @@ export function JobForm({
   const set = <K extends keyof DraftValues>(key: K, value: DraftValues[K]) => {
     setEdited(true);
     setValues((current) => ({ ...current, [key]: value }));
-    setGuessed((current) => {
-      if (!current.has(key)) return current;
-      const next = new Set(current);
-      next.delete(key);
-      return next;
-    });
+    clear(key);
   };
 
   async function submit(event: FormEvent) {
@@ -113,7 +111,12 @@ export function JobForm({
     }
   }
 
-  const sectionProps = { values, errors, guessed, set };
+  // AI suggestions fill empty fields and mark them; editing one clears its mark like any other.
+  const applySuggestions = useApplySuggestions(values, setValues, (fields) => {
+    setEdited(true);
+    markAi(fields);
+  });
+  const sectionProps = { values, errors, marks, set };
   // Older servers (contract v0.1) don't send followUpDays and would drop these fields.
   const extras = me.followUpDays !== undefined;
   return (
@@ -121,6 +124,7 @@ export function JobForm({
       <div className="flex flex-col gap-2.5 px-4 py-3">
         {STATUS_NOTICE[status] ? <Notice>{STATUS_NOTICE[status]}</Notice> : null}
         <DuplicateWarning url={values.postingUrl} title={values.title} company={values.companyName} />
+        <ImproveWithAi me={me} values={values} onApply={applySuggestions} />
         <BasicsSection {...sectionProps} />
         <SalarySection {...sectionProps} defaultCurrency={me.currency} />
         <DetailsSection {...sectionProps} />

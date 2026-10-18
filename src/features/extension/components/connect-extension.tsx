@@ -93,6 +93,7 @@ export function ConnectExtension({ ext, state }: { ext: string; state: string })
             <li>save jobs you review in the extension, with a contact and a to-do if you add them</li>
             <li>check whether you already saved a job</li>
             <li>read your name, email, default currency, follow-up days and pipeline stages</li>
+            <li>suggest missing details with AI, only if you turn that on in Settings</li>
           </ul>
           <p className="mt-2 text-[#91a096]">
             It can&apos;t read or change anything else. You can disconnect it any time in Settings.

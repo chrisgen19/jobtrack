@@ -371,6 +371,75 @@ Verification:
     the integration tests.
   - LinkedIn's signed-in hiring-team card.
 
+PR 4, opt-in "Improve with AI" (`feature/extension-ai-suggestions`, stacked on PR 3):
+
+- [x] Scope: labelled, opt-in help for filling form fields from text the user already has on screen, reviewed
+      before saving. It is not the "speculative AI automation" the PRD rules out, and it follows BACKLOG AI-01
+      (opt-in, third-party processing disclosed).
+- [x] Provider: Google Gemini, switched from Anthropic before release (2026-10-18). No SDK:
+      `src/lib/integrations/gemini/client.ts` calls the Interactions API (`POST /v1beta/interactions`, GA since June 2026) over fetch, like the Google Calendar client:
+  - Structured output via `response_format` with the JSON Schema from `z.toJSONSchema(aiExtractionSchema)` (no
+    `$schema` key), and the answer re-parsed with the same Zod schema.
+  - `store: false`, no tools, `max_output_tokens` 2000, `thinking_level` "minimal" on Flash-Lite and "low" otherwise,
+    the timeout from env, no retries.
+  - HTTP errors are sorted into busy (429, 408, 5xx, network, timeout), config (401, 402, 403, 404,
+    `failed_precondition`) and rejected. A status other than `completed` (for example `incomplete` at the token
+    limit) or output that doesn't match the schema means "no answer". Thinking tokens count as output tokens.
+  - The key needs a Google project with billing enabled (paid tier): free-tier prompts are used to improve Google's
+    products.
+- [x] Env (`aiEnv()`, off without a key): `GEMINI_API_KEY`, `AI_MODEL` (default `gemini-3.8-flash`),
+      `AI_DAILY_REQUESTS_PER_USER` (25), `AI_MONTHLY_REQUEST_LIMIT` (3000), `AI_TIMEOUT_MS` (20000). Documented in
+      `.env.example` and passed to the `web` service in `compose.prod.yml` (missing before the switch, so the feature
+      could not have been turned on in production).
+- [x] Migration `extension_ai_suggestions`:
+  - `user_preferences.ai_suggestions` and `ai_consent_at`.
+  - `ai_usage`: per user and local day, with a CHECK on the counts.
+  - `ai_extraction_cache`: validated suggestions only, 7 days, cleaned up on write.
+  - Applied to the local dev DB; the test DB gets it through the test global setup.
+- [x] `POST /api/extension/v1/extract`, in `src/features/extension/ai/`:
+  - Order of checks: the off switch (503), the opt-in (403), the cache (free), the monthly cap (503), then an atomic
+    daily reservation (429). The reservation is refunded on a provider error; a refusal counts.
+  - Limits: 10 requests a minute per token, 200 KB body, and the call is aborted if the popup closes.
+  - Page text is escaped inside `<page_text>`.
+  - Each output field is re-validated, and fields the form already has are dropped. The salary fields go as a group.
+  - Logs carry IDs, the stop reason and token counts only.
+- [x] `/me` sends `features.ai {available, enabled}`.
+- [x] Settings → Browser extension: an "Improve with AI" switch with the Google (Gemini) disclosure, disabled when the
+      server has no key. The consent time is recorded, and the privacy note is updated.
+- [x] Connect page, `CHROMEWEBSTORE.md` (Google as a third party, opt-in), `docs/SECURITY.md` (control and
+      residual risk 10), `docs/DATA_MODEL.md`, `extension/README.md`.
+- [x] Extension:
+  - "Improve with AI" button at the top of the form, or a link to turn it on.
+  - It sends the description and the names of the filled fields, not their values.
+  - Suggestions fill only empty fields and are marked **AI** (the marks share the "check" mechanism). The notice
+    shows how many fields were filled and the requests left today.
+
+Verification:
+
+- Web Vitest: 167 tests, 27 files.
+  - `tests/integration/extension-ai.test.ts`:
+    - Off without a key, and needs the opt-in (the consent time is stored).
+    - Only missing, valid fields come back, and usage is recorded.
+    - A cache hit is free and the cache never holds the text.
+    - Daily and monthly limits.
+    - Refund on a provider error; a refusal counts.
+    - Short text is rejected (400), and the posting text never appears in the logs.
+  - `ai/suggestions.test.ts`: per-field validation, choice fields, salary group, tag escaping.
+  - `gemini/client.test.ts`, with `fetch` mocked: request body (model, `store: false`, thinking level, JSON schema,
+    no tools), reading the output step, `incomplete` and unparsable answers, error sorting and caller aborts.
+- Extension Vitest: 98 tests.
+- The schema `z.toJSONSchema` generates: 18 required fields, nullable ones as `["string", "null"]`,
+  `additionalProperties: false`, all within Gemini's supported subset. The choice fields stay plain strings checked
+  by the server, so one bad value doesn't discard the whole answer.
+- Real Chromium, built extension, side panel page, live LinkedIn job, API mocked:
+  - The description and six filled field names were sent.
+  - Three empty fields were filled and marked AI; the real title was not replaced; editing a field cleared its mark.
+  - Layout checked at 360 px.
+- Not verified:
+  - A real Gemini call: no API key on this machine. Run one posting end to end after setting `GEMINI_API_KEY`
+    locally.
+  - The Settings page in a browser: the running dev server needs a restart to load the regenerated Prisma client.
+
 ## Definition of Done status
 
 | #   | Step                                                        | Status                                                                   |

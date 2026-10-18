@@ -89,3 +89,9 @@ export function emptyDraft(): DraftValues {
     followUpDate: "",
   };
 }
+
+/** Why a prefilled value needs a look: guessed from the page text, or suggested by AI. */
+export type FieldMark = "check" | "ai";
+
+/** Marked fields of a form; a field's mark goes away once the user edits it. */
+export type FieldMarks = Partial<Record<keyof DraftValues, FieldMark>>;

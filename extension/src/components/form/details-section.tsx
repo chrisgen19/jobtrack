@@ -1,7 +1,7 @@
 import { Field, TextArea, TextInput } from "../fields";
 import type { SectionProps } from "./section-props";
 
-export function DetailsSection({ values, errors, set }: Omit<SectionProps, "guessed">) {
+export function DetailsSection({ values, errors, set }: Omit<SectionProps, "marks">) {
   return (
     <>
       <div className="grid grid-cols-[1fr_120px] gap-2.5">

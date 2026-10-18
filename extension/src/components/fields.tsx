@@ -1,21 +1,36 @@
 import type { ComponentProps, ReactNode } from "react";
+import type { FieldMark } from "@/lib/draft";
 
 const control =
   "w-full rounded-[9px] border border-line bg-white px-2.5 py-2 text-xs text-ink outline-none placeholder:text-faint focus:border-brand focus:ring-2 focus:ring-brand/15 aria-invalid:border-danger";
+
+export type { FieldMark };
+
+const MARK = {
+  check: {
+    text: "check",
+    title: "Guessed from the page text. Check it before saving.",
+    className: "bg-[#fdf6ea] text-warning",
+  },
+  ai: {
+    text: "AI",
+    title: "Suggested by AI from the posting. Check it before saving.",
+    className: "bg-[#eef0fb] text-[#4f5aa8]",
+  },
+} satisfies Record<FieldMark, { text: string; title: string; className: string }>;
 
 export function Field({
   id,
   label,
   error,
-  guessed = false,
+  mark,
   children,
   className = "",
 }: {
   id: string;
   label: string;
   error?: string;
-  /** The prefilled value was inferred, not read from the posting: ask the user to check it. */
-  guessed?: boolean;
+  mark?: FieldMark;
   children: ReactNode;
   className?: string;
 }) {
@@ -26,12 +41,12 @@ export function Field({
         className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.6px] text-subtle uppercase"
       >
         {label}
-        {guessed ? (
+        {mark ? (
           <span
-            title="Guessed from the page text. Check it before saving."
-            className="rounded-[5px] bg-[#fdf6ea] px-1 py-px text-[9px] tracking-normal text-warning normal-case"
+            title={MARK[mark].title}
+            className={`rounded-[5px] px-1 py-px text-[9px] tracking-normal normal-case ${MARK[mark].className}`}
           >
-            check
+            {MARK[mark].text}
           </span>
         ) : null}
       </label>

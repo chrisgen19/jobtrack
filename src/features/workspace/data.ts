@@ -18,6 +18,8 @@ export type WorkspacePreferences = {
   suggestFollowUps: boolean;
   followUpDays: number;
   calendarSyncTasks: boolean;
+  /** Opted in to "Improve with AI" in the browser extension. */
+  aiSuggestions: boolean;
 };
 
 export type Workspace = { user: CurrentUser; preferences: WorkspacePreferences };
@@ -34,6 +36,7 @@ const preferenceSelect = {
   suggestFollowUps: true,
   followUpDays: true,
   calendarSyncTasks: true,
+  aiSuggestions: true,
   onboardedAt: true,
 } as const;
 
