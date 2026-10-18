@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AiSuggestionsForm } from "@/features/extension/components/ai-suggestions-form";
 import { ExtensionConnections } from "@/features/extension/components/extension-connections";
 import { listExtensionTokens } from "@/features/extension/tokens";
 import { SettingsCard } from "@/features/settings/components/settings-card";
 import { requireWorkspace } from "@/features/workspace/data";
 import { formatInTimeZone } from "@/lib/dates";
+import { isAiConfigured } from "@/lib/integrations/anthropic/client";
 
 export const metadata: Metadata = { title: "Browser extension" };
 
@@ -18,11 +20,15 @@ export default function ExtensionSettingsPage() {
       <Suspense fallback={<Skeleton className="h-24 rounded-xl" />}>
         <Connections />
       </Suspense>
+      <Suspense fallback={null}>
+        <AiPreference />
+      </Suspense>
       <p className="mt-4 rounded-[9px] bg-[#f4f7f2] px-3.5 py-3 text-[11px] leading-relaxed text-[#829082]">
         Privacy: the extension reads a page only when you open it on that page. It then checks the
         posting&apos;s link, title and company against your saved jobs, and saves nothing until you review the
         details and click Save. It can save jobs and check for duplicates, but can&apos;t read the rest of
-        your workspace.
+        your workspace. With Improve with AI on, the posting&apos;s text goes to Anthropic only when you click
+        it.
       </p>
     </SettingsCard>
   );
@@ -41,4 +47,9 @@ async function Connections() {
       }))}
     />
   );
+}
+
+async function AiPreference() {
+  const { preferences } = await requireWorkspace();
+  return <AiSuggestionsForm enabled={preferences.aiSuggestions} available={isAiConfigured()} />;
 }

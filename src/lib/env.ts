@@ -120,6 +120,38 @@ export const googleEnv = lazy(() => {
   return { clientId: parsed.GOOGLE_CLIENT_ID, clientSecret: parsed.GOOGLE_CLIENT_SECRET };
 });
 
+/** An optional whole number with a default; an empty variable means the default. */
+const intWithDefault = (fallback: number, min: number, max: number) =>
+  z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.coerce.number().int().min(min).max(max).default(fallback),
+  );
+
+/**
+ * "Improve with AI" in the browser extension (Anthropic), or `null` when
+ * ANTHROPIC_API_KEY is not set, which turns the feature off. Only the web
+ * service needs these.
+ */
+export const aiEnv = lazy(() => {
+  const parsed = z
+    .object({
+      ANTHROPIC_API_KEY: optionalString,
+      AI_MODEL: optionalString.transform((value) => value ?? "claude-haiku-5-5"),
+      AI_DAILY_REQUESTS_PER_USER: intWithDefault(25, 0, 10_000),
+      AI_MONTHLY_REQUEST_LIMIT: intWithDefault(3_000, 0, 10_000_000),
+      AI_TIMEOUT_MS: intWithDefault(20_000, 1_000, 120_000),
+    })
+    .parse(process.env);
+  if (!parsed.ANTHROPIC_API_KEY) return null;
+  return {
+    apiKey: parsed.ANTHROPIC_API_KEY,
+    model: parsed.AI_MODEL,
+    dailyRequestsPerUser: parsed.AI_DAILY_REQUESTS_PER_USER,
+    monthlyRequestLimit: parsed.AI_MONTHLY_REQUEST_LIMIT,
+    timeoutMs: parsed.AI_TIMEOUT_MS,
+  };
+});
+
 /**
  * Browser extension IDs allowed to receive an extension token from the
  * connect page (comma separated). Empty means the extension is not set up.

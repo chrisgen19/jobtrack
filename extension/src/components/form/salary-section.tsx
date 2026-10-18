@@ -6,13 +6,13 @@ import type { SectionProps } from "./section-props";
 export function SalarySection({
   values,
   errors,
-  guessed,
+  marks,
   set,
   defaultCurrency,
 }: SectionProps & { defaultCurrency: string }) {
   return (
     <div className="grid grid-cols-2 gap-2.5">
-      <Field id="salaryMin" label="Salary min" error={errors.salaryMin} guessed={guessed.has("salaryMin")}>
+      <Field id="salaryMin" label="Salary min" error={errors.salaryMin} mark={marks.get("salaryMin")}>
         <TextInput
           id="salaryMin"
           inputMode="decimal"
@@ -21,7 +21,7 @@ export function SalarySection({
           onChange={(event) => set("salaryMin", event.target.value)}
         />
       </Field>
-      <Field id="salaryMax" label="Salary max" error={errors.salaryMax} guessed={guessed.has("salaryMax")}>
+      <Field id="salaryMax" label="Salary max" error={errors.salaryMax} mark={marks.get("salaryMax")}>
         <TextInput
           id="salaryMax"
           inputMode="decimal"
@@ -30,7 +30,7 @@ export function SalarySection({
           onChange={(event) => set("salaryMax", event.target.value)}
         />
       </Field>
-      <Field id="currency" label="Currency" error={errors.currency} guessed={guessed.has("currency")}>
+      <Field id="currency" label="Currency" error={errors.currency} mark={marks.get("currency")}>
         <TextInput
           id="currency"
           maxLength={3}
@@ -44,7 +44,7 @@ export function SalarySection({
         id="salaryPeriod"
         label="Pay period"
         error={errors.salaryPeriod}
-        guessed={guessed.has("salaryPeriod")}
+        mark={marks.get("salaryPeriod")}
       >
         <Select
           id="salaryPeriod"

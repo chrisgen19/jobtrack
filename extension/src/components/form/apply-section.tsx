@@ -5,7 +5,7 @@ import { Field, Select, TextInput } from "../fields";
 import { FollowUpSection } from "./follow-up-section";
 import type { SectionProps } from "./section-props";
 
-type Props = Omit<SectionProps, "guessed"> & {
+type Props = Omit<SectionProps, "marks"> & {
   stages: ExtensionMe["stages"];
   today: string;
   /** The server accepts the application method and a to-do (contract v0.2). */

@@ -371,6 +371,68 @@ Verification:
     the integration tests.
   - LinkedIn's signed-in hiring-team card.
 
+PR 4, opt-in "Improve with AI" (`feature/extension-ai-suggestions`, stacked on PR 3):
+
+- [x] Scope: labelled, opt-in help for filling form fields from text the user already has on screen, reviewed
+      before saving. It is not the "speculative AI automation" the PRD rules out, and it follows BACKLOG AI-01
+      (opt-in, third-party processing disclosed).
+- [x] `@anthropic-ai/sdk` 0.131.0. `src/lib/integrations/anthropic/client.ts` is the only code that calls it:
+  - `messages.parse` with a Zod structured output, `effort: "low"`, and thinking off on Haiku; no tools, 1 retry, the
+    timeout from env.
+  - The key is passed explicitly, so a local `ant` login can't switch the feature on.
+  - SDK errors are sorted into busy, config and rejected. A refusal, a cut-off answer or unparsable output means "no
+    answer".
+- [x] Env (`aiEnv()`, off without a key): `ANTHROPIC_API_KEY`, `AI_MODEL` (default `claude-haiku-5-5`),
+      `AI_DAILY_REQUESTS_PER_USER` (25), `AI_MONTHLY_REQUEST_LIMIT` (3000), `AI_TIMEOUT_MS` (20000). Documented in
+      `.env.example`.
+- [x] Migration `extension_ai_suggestions`:
+  - `user_preferences.ai_suggestions` and `ai_consent_at`.
+  - `ai_usage`: per user and local day, with a CHECK on the counts.
+  - `ai_extraction_cache`: validated suggestions only, 7 days, cleaned up on write.
+  - Applied to the local dev DB; the test DB gets it through the test global setup.
+- [x] `POST /api/extension/v1/extract`, in `src/features/extension/ai/`:
+  - Order of checks: the off switch (503), the opt-in (403), the cache (free), the monthly cap (503), then an atomic
+    daily reservation (429). The reservation is refunded on a provider error; a refusal counts.
+  - Limits: 10 requests a minute per token, 200 KB body, and the call is aborted if the popup closes.
+  - Page text is escaped inside `<page_text>`.
+  - Each output field is re-validated, and fields the form already has are dropped. The salary fields go as a group.
+  - Logs carry IDs, the stop reason and token counts only.
+- [x] `/me` sends `features.ai {available, enabled}`.
+- [x] Settings → Browser extension: an "Improve with AI" switch with the Anthropic disclosure, disabled when the
+      server has no key. The consent time is recorded, and the privacy note is updated.
+- [x] Connect page, `CHROMEWEBSTORE.md` (Anthropic as a third party, opt-in), `docs/SECURITY.md` (control and
+      residual risk 10), `docs/DATA_MODEL.md`, `extension/README.md`.
+- [x] Extension:
+  - "Improve with AI" button at the top of the form, or a link to turn it on.
+  - It sends the description and the names of the filled fields, not their values.
+  - Suggestions fill only empty fields and are marked **AI** (the marks share the "check" mechanism). The notice
+    shows how many fields were filled and the requests left today.
+
+Verification:
+
+- Web Vitest: 167 tests, 27 files.
+  - `tests/integration/extension-ai.test.ts`:
+    - Off without a key, and needs the opt-in (the consent time is stored).
+    - Only missing, valid fields come back, and usage is recorded.
+    - A cache hit is free and the cache never holds the text.
+    - Daily and monthly limits.
+    - Refund on a provider error; a refusal counts.
+    - Short text is rejected (400), and the posting text never appears in the logs.
+  - `ai/suggestions.test.ts`: per-field validation, choice fields, salary group, tag escaping.
+  - `anthropic/client.test.ts`, against the real SDK classes: request parameters (Haiku, thinking off, low effort,
+    JSON schema, no `temperature` or tools) and error sorting.
+- Extension Vitest: 98 tests.
+- The schema `zodOutputFormat` generates is strict JSON Schema: 18 required fields, `additionalProperties: false`.
+  The SDK can't enforce nullable enums, so those are plain strings checked by the server.
+- Real Chromium, built extension, side panel page, live LinkedIn job, API mocked:
+  - The description and six filled field names were sent.
+  - Three empty fields were filled and marked AI; the real title was not replaced; editing a field cleared its mark.
+  - Layout checked at 360 px.
+- Not verified:
+  - A real Claude call: no API key on this machine. Run one posting end to end after setting `ANTHROPIC_API_KEY`
+    locally.
+  - The Settings page in a browser: the running dev server needs a restart to load the regenerated Prisma client.
+
 ## Definition of Done status
 
 | #   | Step                                                        | Status                                                                   |

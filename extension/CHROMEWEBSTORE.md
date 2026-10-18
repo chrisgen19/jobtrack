@@ -1,6 +1,6 @@
 # Chrome Web Store Listing: Save to JobTrack
 
-> Last Updated: 2026-10-18 (side panel, context menu, shortcut, optional job-site access; contacts and to-dos). Status: not submitted (distributed as an unpacked build for now).
+> Last Updated: 2026-10-18 (side panel, context menu, shortcut, optional job-site access; contacts and to-dos; optional AI suggestions). Status: not submitted (distributed as an unpacked build for now).
 
 ## Store Listing
 
@@ -22,9 +22,11 @@ How to use it:
 2. Open a job posting on any site.
 3. Click the extension (or press Alt+Shift+J), check the details and click Save job.
 
+Optional: turn on "Improve with AI" in JobTrack's settings to fill details the page didn't give from the posting's text. The text is sent to Anthropic (Claude) through your JobTrack server only when you click the button; suggestions are marked "AI" for you to check.
+
 Optional: turn on "Auto-detect job sites" to mark job pages on LinkedIn, JobStreet, Indeed and other supported sites with a badge, and have the side panel read them as you browse.
 
-Privacy: the extension reads a page only when you open it on that page (toolbar button, shortcut or right-click), or, if you turn on auto-detect, job pages on the supported job sites while the side panel is open. It then checks the posting's link, title and company against your saved jobs, and saves nothing until you click Save job. It talks only to your JobTrack server. You can disconnect it any time from the extension or from JobTrack's settings.
+Privacy: the extension reads a page only when you open it on that page (toolbar button, shortcut or right-click), or, if you turn on auto-detect, job pages on the supported job sites while the side panel is open. Posting text goes to Anthropic only when you have turned on Improve with AI and click it. It then checks the posting's link, title and company against your saved jobs, and saves nothing until you click Save job. It talks only to your JobTrack server. You can disconnect it any time from the extension or from JobTrack's settings.
 
 **Category:** Productivity
 
@@ -65,13 +67,13 @@ Privacy: the extension reads a page only when you open it on that page (toolbar 
 
 **Does the extension collect user data?** Yes: the job details it reads from the page (sent to the user's own JobTrack server for the duplicate check and, on Save, to store the job) and the user's name and email (received from JobTrack and shown in the popup).
 
-| Data Type                    | Collected? | Transmitted Off-Device?         | Purpose                                                                                                                                                                                                                 | Shared with Third Parties? |
-| ---------------------------- | ---------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| Personally identifiable info | Yes        | Yes (to JobTrack only, on Save) | The user's JobTrack name and email (received, shown, not stored by the extension). If the user saves a contact: the recruiter's name, title, email and LinkedIn link from the posting, stored in their JobTrack account | No                         |
-| Authentication info          | Yes        | Yes (to JobTrack only)          | Connection token that authorizes saving                                                                                                                                                                                 | No                         |
-| Website content              | Yes        | Yes (to JobTrack only)          | Job details from the open page: checked for duplicates when the popup opens, stored only on Save                                                                                                                        | No                         |
-| Web history                  | Yes        | Yes (to JobTrack only)          | The open posting's URL: duplicate check, and saved with the job on Save. With auto-detect on, supported job sites' tab URLs are checked on the device for the badge and never sent                                      | No                         |
-| Other categories             | No         | No                              |                                                                                                                                                                                                                         | No                         |
+| Data Type                    | Collected? | Transmitted Off-Device?                                   | Purpose                                                                                                                                                                                                                                              | Shared with Third Parties?                        |
+| ---------------------------- | ---------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Personally identifiable info | Yes        | Yes (to JobTrack only, on Save)                           | The user's JobTrack name and email (received, shown, not stored by the extension). If the user saves a contact: the recruiter's name, title, email and LinkedIn link from the posting, stored in their JobTrack account                              | No                                                |
+| Authentication info          | Yes        | Yes (to JobTrack only)                                    | Connection token that authorizes saving                                                                                                                                                                                                              | No                                                |
+| Website content              | Yes        | Yes (to JobTrack; to Anthropic only with Improve with AI) | Job details from the open page: checked for duplicates when the popup opens, stored only on Save. If the user turned on Improve with AI and clicks it, the posting's description and link go through JobTrack to Anthropic to suggest missing fields | Yes, Anthropic, only for Improve with AI (opt-in) |
+| Web history                  | Yes        | Yes (to JobTrack only)                                    | The open posting's URL: duplicate check, and saved with the job on Save. With auto-detect on, supported job sites' tab URLs are checked on the device for the badge and never sent                                                                   | No                                                |
+| Other categories             | No         | No                                                        |                                                                                                                                                                                                                                                      | No                                                |
 
 - [x] Data is NOT sold to third parties
 - [x] Data is NOT used for purposes unrelated to the extension's core functionality

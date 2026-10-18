@@ -2,10 +2,12 @@ import { z } from "zod";
 import {
   extensionDuplicatesSchema,
   extensionErrorSchema,
+  extensionExtractResultSchema,
   extensionMeSchema,
   extensionSaveResultSchema,
   type ExtensionDuplicateQuery,
   type ExtensionError,
+  type ExtensionExtractRequest,
   type ExtensionJobDraft,
 } from "@jobtrack/shared/extension-api";
 import { jobtrackUrl } from "./config";
@@ -60,6 +62,15 @@ export const saveJob = (draft: ExtensionJobDraft) =>
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(draft),
+  });
+
+/** "Improve with AI": suggestions for the fields the form is missing, from the posting text. */
+export const suggestFields = (request: ExtensionExtractRequest, signal?: AbortSignal) =>
+  call("/extract", extensionExtractResultSchema, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(request),
+    signal,
   });
 
 /** Revokes the token on the server (best effort) and forgets it locally. */

@@ -3,10 +3,10 @@ import { EMPLOYMENT_TYPE_LABEL, options, PRIORITY_LABEL, WORK_ARRANGEMENT_LABEL 
 import { Field, Select, TextInput } from "../fields";
 import type { SectionProps } from "./section-props";
 
-export function BasicsSection({ values, errors, guessed, set }: SectionProps) {
+export function BasicsSection({ values, errors, marks, set }: SectionProps) {
   return (
     <>
-      <Field id="title" label="Job title *" error={errors.title}>
+      <Field id="title" mark={marks.get("title")} label="Job title *" error={errors.title}>
         <TextInput
           id="title"
           required
@@ -16,12 +16,7 @@ export function BasicsSection({ values, errors, guessed, set }: SectionProps) {
           onChange={(event) => set("title", event.target.value)}
         />
       </Field>
-      <Field
-        id="companyName"
-        label="Company *"
-        error={errors.companyName}
-        guessed={guessed.has("companyName")}
-      >
+      <Field id="companyName" label="Company *" error={errors.companyName} mark={marks.get("companyName")}>
         <TextInput
           id="companyName"
           required
@@ -32,7 +27,7 @@ export function BasicsSection({ values, errors, guessed, set }: SectionProps) {
         />
       </Field>
       <div className="grid grid-cols-2 gap-2.5">
-        <Field id="location" label="Location" error={errors.location}>
+        <Field id="location" mark={marks.get("location")} label="Location" error={errors.location}>
           <TextInput
             id="location"
             maxLength={120}
@@ -40,7 +35,7 @@ export function BasicsSection({ values, errors, guessed, set }: SectionProps) {
             onChange={(event) => set("location", event.target.value)}
           />
         </Field>
-        <Field id="workArrangement" label="Work setup" guessed={guessed.has("workArrangement")}>
+        <Field id="workArrangement" label="Work setup" mark={marks.get("workArrangement")}>
           <Select
             id="workArrangement"
             placeholder="Not set"
@@ -49,7 +44,7 @@ export function BasicsSection({ values, errors, guessed, set }: SectionProps) {
             onChange={(event) => set("workArrangement", event.target.value as DraftValues["workArrangement"])}
           />
         </Field>
-        <Field id="employmentType" label="Type" guessed={guessed.has("employmentType")}>
+        <Field id="employmentType" label="Type" mark={marks.get("employmentType")}>
           <Select
             id="employmentType"
             placeholder="Not set"

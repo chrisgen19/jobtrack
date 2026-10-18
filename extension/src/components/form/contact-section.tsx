@@ -4,7 +4,7 @@ import { Field, Select, TextInput } from "../fields";
 import type { SectionProps } from "./section-props";
 
 /** Recruiter or hiring manager from the posting, saved as a contact of the company. */
-export function ContactSection({ values, errors, guessed, set }: SectionProps) {
+export function ContactSection({ values, errors, marks, set }: SectionProps) {
   return (
     <div className="flex flex-col gap-2.5 rounded-[10px] bg-surface-2 p-3">
       <label className="flex items-center gap-2 text-xs font-bold text-ink">
@@ -18,7 +18,7 @@ export function ContactSection({ values, errors, guessed, set }: SectionProps) {
       </label>
       {values.saveContact ? (
         <div className="grid grid-cols-2 gap-2.5">
-          <Field id="contactName" label="Name *" error={errors.contactName}>
+          <Field id="contactName" mark={marks.get("contactName")} label="Name *" error={errors.contactName}>
             <TextInput
               id="contactName"
               maxLength={120}
@@ -35,7 +35,7 @@ export function ContactSection({ values, errors, guessed, set }: SectionProps) {
               onChange={(event) => set("contactKind", event.target.value as DraftValues["contactKind"])}
             />
           </Field>
-          <Field id="contactTitle" label="Job title" className="col-span-2">
+          <Field id="contactTitle" mark={marks.get("contactTitle")} label="Job title" className="col-span-2">
             <TextInput
               id="contactTitle"
               maxLength={120}
@@ -43,12 +43,7 @@ export function ContactSection({ values, errors, guessed, set }: SectionProps) {
               onChange={(event) => set("contactTitle", event.target.value)}
             />
           </Field>
-          <Field
-            id="contactEmail"
-            label="Email"
-            error={errors.contactEmail}
-            guessed={guessed.has("contactEmail")}
-          >
+          <Field id="contactEmail" label="Email" error={errors.contactEmail} mark={marks.get("contactEmail")}>
             <TextInput
               id="contactEmail"
               type="email"
@@ -56,7 +51,12 @@ export function ContactSection({ values, errors, guessed, set }: SectionProps) {
               onChange={(event) => set("contactEmail", event.target.value)}
             />
           </Field>
-          <Field id="contactLinkedinUrl" label="LinkedIn" error={errors.contactLinkedinUrl}>
+          <Field
+            id="contactLinkedinUrl"
+            mark={marks.get("contactLinkedinUrl")}
+            label="LinkedIn"
+            error={errors.contactLinkedinUrl}
+          >
             <TextInput
               id="contactLinkedinUrl"
               type="url"

@@ -28,6 +28,8 @@
 | Calendar sync | `calendar_event_links` | UUID PK, connection plus exactly one interview/task, external event ID, retry state |
 | Pending deliveries | `reminders` | UUID PK, exactly one interview/task, one channel, stable dedupe key and lease |
 | User inbox | `notifications` | UUID PK, optional reminder, unread/read record |
+| AI usage | `ai_usage` | PK `(user_id, day)` (user's local day): "Improve with AI" request and token counts; the daily quota and the monthly server cap |
+| AI cache | `ai_extraction_cache` | UUID PK, unique `(user_id, cache_key)`: validated suggestions for a posting for 7 days (never the posting text) |
 
 ## 2. Ownership and cross-tenant constraints
 

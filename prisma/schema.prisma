@@ -306,6 +306,8 @@ model User {
   calendarConnections  CalendarConnection[]
   calendarEventSyncs   CalendarEventSync[]
   extensionTokens      ExtensionToken[]
+  aiUsage              AiUsage[]
+  aiExtractionCache    AiExtractionCache[]
 
   @@unique([email])
   @@map("user")
@@ -389,6 +391,10 @@ model UserPreferences {
   suggestFollowUps         Boolean   @default(true) @map("suggest_follow_ups")
   followUpDays             Int       @default(7) @map("follow_up_days")
   calendarSyncTasks        Boolean   @default(false) @map("calendar_sync_tasks")
+  /// Opt-in to "Improve with AI" in the browser extension (posting text goes to Anthropic).
+  aiSuggestions            Boolean   @default(false) @map("ai_suggestions")
+  /// When the user last turned aiSuggestions on (consent record).
+  aiConsentAt              DateTime? @map("ai_consent_at") @db.Timestamptz(3)
   onboardedAt              DateTime? @map("onboarded_at") @db.Timestamptz(3)
   createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -1007,4 +1013,38 @@ model ExtensionToken {
   @@unique([userId, id])
   @@index([userId, createdAt])
   @@map("extension_tokens")
+}
+
+/// AI suggestion requests per user and local day (quota; also summed for the monthly cap).
+model AiUsage {
+  userId       String   @map("user_id")
+  /// The user's local calendar day.
+  day          DateTime @db.Date
+  requests     Int      @default(0)
+  inputTokens  Int      @default(0) @map("input_tokens")
+  outputTokens Int      @default(0) @map("output_tokens")
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+  @@index([day])
+  @@map("ai_usage")
+}
+
+/// Validated AI suggestions for a posting, so asking again is free. Never holds the page text.
+model AiExtractionCache {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @map("user_id")
+  /// sha256 of prompt version, model, normalized posting URL and the text's own hash.
+  cacheKey  String   @map("cache_key") @db.Char(64)
+  result    Json
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cacheKey])
+  @@index([expiresAt])
+  @@map("ai_extraction_cache")
 }

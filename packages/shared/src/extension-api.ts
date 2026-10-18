@@ -116,6 +116,11 @@ export const extensionMeSchema = z.object({
   stages: z.array(z.object({ id: z.string(), name: z.string() })),
   /** Default days until a follow-up (Settings). Missing on servers older than v0.2 of this contract. */
   followUpDays: z.number().int().optional(),
+  /**
+   * "Improve with AI": `available` when the server has an AI key, `enabled`
+   * when the user also turned it on in Settings. Missing before contract v0.3.
+   */
+  features: z.object({ ai: z.object({ available: z.boolean(), enabled: z.boolean() }) }).optional(),
 });
 
 export type ExtensionMe = z.infer<typeof extensionMeSchema>;
@@ -171,6 +176,81 @@ export function fieldErrorsFrom(error: z.ZodError): Record<string, string[]> {
   }
   return output;
 }
+
+/** Fields "Improve with AI" can suggest (the contact fields are the form's flat ones). */
+export const AI_SUGGESTABLE_FIELDS = [
+  "title",
+  "companyName",
+  "location",
+  "workArrangement",
+  "employmentType",
+  "salaryMin",
+  "salaryMax",
+  "currency",
+  "salaryPeriod",
+  "salaryBasis",
+  "requiredSkills",
+  "deadline",
+  "referenceCode",
+  "companyWebsite",
+  "contactName",
+  "contactTitle",
+  "contactEmail",
+  "contactLinkedinUrl",
+] as const;
+
+export type AiSuggestableField = (typeof AI_SUGGESTABLE_FIELDS)[number];
+
+/**
+ * Body of POST /extract. The extension sends the posting's text and the names
+ * of the fields it already filled (never their values); the server suggests
+ * only the others.
+ */
+export const extensionExtractRequestSchema = z.object({
+  postingUrl: text(2048),
+  pageTitle: text(300),
+  text: z
+    .string()
+    .trim()
+    .min(200, { error: "The description is too short to suggest anything from." })
+    .max(30_000),
+  filledFields: z.array(z.enum(AI_SUGGESTABLE_FIELDS)).max(AI_SUGGESTABLE_FIELDS.length).default([]),
+});
+
+export type ExtensionExtractRequest = z.input<typeof extensionExtractRequestSchema>;
+
+/** Suggested values, already checked by the server; any field may be missing. */
+export const extensionAiSuggestionsSchema = z.object({
+  title: z.string().optional(),
+  companyName: z.string().optional(),
+  location: z.string().optional(),
+  workArrangement: z.enum(WORK_ARRANGEMENTS).optional(),
+  employmentType: z.enum(EMPLOYMENT_TYPES).optional(),
+  salaryMin: z.string().optional(),
+  salaryMax: z.string().optional(),
+  currency: z.string().optional(),
+  salaryPeriod: z.enum(SALARY_PERIODS).optional(),
+  salaryBasis: z.enum(["GROSS", "NET"]).optional(),
+  requiredSkills: z.array(z.string()).optional(),
+  deadline: z.string().optional(),
+  referenceCode: z.string().optional(),
+  companyWebsite: z.string().optional(),
+  contactName: z.string().optional(),
+  contactTitle: z.string().optional(),
+  contactEmail: z.string().optional(),
+  contactLinkedinUrl: z.string().optional(),
+});
+
+export type ExtensionAiSuggestions = z.infer<typeof extensionAiSuggestionsSchema>;
+
+export const extensionExtractResultSchema = z.object({
+  suggestions: extensionAiSuggestionsSchema,
+  /** Served from the cache (no quota used). */
+  cached: z.boolean(),
+  remainingToday: z.number().int(),
+});
+
+export type ExtensionExtractResult = z.infer<typeof extensionExtractResultSchema>;
 
 /** Error body of every non-2xx extension API response. */
 export const extensionErrorSchema = z.object({
