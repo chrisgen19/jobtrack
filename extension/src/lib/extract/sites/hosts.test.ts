@@ -50,4 +50,16 @@ describe("pageKeyFor", () => {
     );
     expect(pageKeyFor("https://careers.acme.test/roles/42")).toBe("https://careers.acme.test/roles/42");
   });
+
+  it("ignores same-page anchors but keeps hash routes", () => {
+    const posting = "https://careers.acme.test/roles/42";
+    expect(pageKeyFor(`${posting}#description`)).toBe(posting);
+    expect(pageKeyFor(`${posting}?ref=x#apply`)).toBe(`${posting}?ref=x`);
+    expect(pageKeyFor(`${posting}#`)).toBe(posting);
+    expect(pageKeyFor("https://jobs.acme.test/#/jobs/7")).toBe("https://jobs.acme.test/#/jobs/7");
+    expect(pageKeyFor("https://jobs.acme.test/#!/jobs/7")).toBe("https://jobs.acme.test/#!/jobs/7");
+    expect(pageKeyFor("https://www.linkedin.com/jobs/search/?currentJobId=123456789#main")).toBe(
+      "https://www.linkedin.com/jobs/view/123456789/",
+    );
+  });
 });

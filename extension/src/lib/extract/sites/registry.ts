@@ -50,7 +50,20 @@ export function jobLinkFor(url: string): string {
 }
 
 /**
- * Key for a page's unsaved draft: the job's own link where there is one, so
- * clicking between jobs in a split view keeps one draft per job.
+ * A URL without its same-page anchor (#description), which in-page links
+ * change. Hash routes (#/jobs/42, #!/jobs/42) name a page in some single-page
+ * apps, so they stay.
  */
-export const pageKeyFor = (url: string): string => jobLinkFor(url) || url;
+const withoutAnchor = (url: string): string => {
+  const hash = url.indexOf("#");
+  if (hash < 0) return url;
+  const fragment = url.slice(hash + 1);
+  return fragment.startsWith("/") || fragment.startsWith("!") ? url : url.slice(0, hash);
+};
+
+/**
+ * Key for a page's unsaved draft: the job's own link where there is one, so
+ * clicking between jobs in a split view keeps one draft per job. Otherwise
+ * the page URL, so an anchor jump on the same posting keeps its draft.
+ */
+export const pageKeyFor = (url: string): string => jobLinkFor(url) || withoutAnchor(url);

@@ -9,12 +9,16 @@ import {
   removeDraft,
   saveDraft,
   scheduleDraftSave,
+  type SavedDraft,
 } from "./drafts";
 import { draftsItem } from "./storage";
 
 const A = "https://jobs.example.com/a";
 const B = "https://jobs.example.com/b";
-const draft = (title: string) => ({ ...emptyDraft(), title });
+const draft = (title: string, guessed: SavedDraft["guessed"] = []): SavedDraft => ({
+  values: { ...emptyDraft(), title },
+  guessed,
+});
 
 describe("per-page drafts", () => {
   beforeEach(() => fakeBrowser.reset());
@@ -24,8 +28,8 @@ describe("per-page drafts", () => {
     // Opening and editing the popup on B must not touch A's draft.
     expect(await loadDraft(B)).toBeNull();
     await saveDraft(B, draft("Edited on B"));
-    expect((await loadDraft(A))?.title).toBe("Edited on A");
-    expect((await loadDraft(B))?.title).toBe("Edited on B");
+    expect((await loadDraft(A))?.values.title).toBe("Edited on A");
+    expect((await loadDraft(B))?.values.title).toBe("Edited on B");
   });
 
   it("removes only the draft of the page that was saved", async () => {
@@ -33,15 +37,29 @@ describe("per-page drafts", () => {
     await saveDraft(B, draft("B"));
     await removeDraft(B);
     expect(await loadDraft(B)).toBeNull();
-    expect((await loadDraft(A))?.title).toBe("A");
+    expect((await loadDraft(A))?.values.title).toBe("A");
   });
 
   it(`keeps the ${MAX_DRAFTS} most recently edited drafts`, async () => {
     for (let i = 0; i <= MAX_DRAFTS; i++)
       await saveDraft(`https://jobs.example.com/${i}`, draft(`${i}`), 1_000 + i);
     expect(await loadDraft("https://jobs.example.com/0")).toBeNull();
-    expect((await loadDraft("https://jobs.example.com/1"))?.title).toBe("1");
-    expect((await loadDraft(`https://jobs.example.com/${MAX_DRAFTS}`))?.title).toBe(`${MAX_DRAFTS}`);
+    expect((await loadDraft("https://jobs.example.com/1"))?.values.title).toBe("1");
+    expect((await loadDraft(`https://jobs.example.com/${MAX_DRAFTS}`))?.values.title).toBe(`${MAX_DRAFTS}`);
+  });
+});
+
+describe("guessed fields in drafts", () => {
+  beforeEach(() => fakeBrowser.reset());
+
+  it("keeps the fields still flagged as guesses with the draft", async () => {
+    await saveDraft(A, draft("Edited title", ["salaryMin", "workArrangement"]));
+    expect((await loadDraft(A))?.guessed).toEqual(["salaryMin", "workArrangement"]);
+  });
+
+  it("loads a draft stored before guesses were kept with no flagged fields", async () => {
+    await draftsItem.setValue({ [A]: { values: draft("Old").values, updatedAt: 1_000 } });
+    expect(await loadDraft(A)).toEqual({ values: draft("Old").values, guessed: [] });
   });
 });
 
@@ -51,7 +69,7 @@ describe("draft write ordering", () => {
   it("applies interleaved, unawaited saves and removes in call order", async () => {
     await Promise.all([saveDraft(A, draft("A")), saveDraft(B, draft("B")), removeDraft(A)]);
     expect(await loadDraft(A)).toBeNull();
-    expect((await loadDraft(B))?.title).toBe("B");
+    expect((await loadDraft(B))?.values.title).toBe("B");
   });
 });
 
@@ -72,7 +90,7 @@ describe("batched draft writes", () => {
     await vi.advanceTimersByTimeAsync(DRAFT_SAVE_DELAY_MS - 1);
     expect(writes).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
-    expect((await loadDraft(A))?.title).toBe("A123");
+    expect((await loadDraft(A))?.values.title).toBe("A123");
     expect(writes).toHaveBeenCalledTimes(1);
     writes.mockRestore();
   });
@@ -87,6 +105,6 @@ describe("batched draft writes", () => {
   it("writes a scheduled draft immediately when flushed", async () => {
     scheduleDraftSave(A, draft("A"));
     await flushDraftSave();
-    expect((await loadDraft(A))?.title).toBe("A");
+    expect((await loadDraft(A))?.values.title).toBe("A");
   });
 });
