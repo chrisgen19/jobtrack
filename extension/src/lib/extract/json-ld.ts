@@ -116,11 +116,16 @@ function referenceOf(posting: Node): string {
   return value.length <= 40 && !/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(value) ? value : "";
 }
 
-/** The employer's own site from hiringOrganization (job board company pages don't count). */
+/**
+ * The employer's own site from hiringOrganization: the first http(s) link in
+ * sameAs (one URL or a list) or url that isn't a job board company page.
+ */
 function websiteOf(organization: unknown): string {
   if (!isNode(organization)) return "";
-  const url = [organization.sameAs, organization.url].map(str).find((value) => /^https?:\/\//.test(value));
-  return url && !isJobBoard(url) ? url.slice(0, 2048) : "";
+  const url = [...asArray(organization.sameAs), organization.url]
+    .map(str)
+    .find((value) => /^https?:\/\//.test(value) && !isJobBoard(value));
+  return url ? url.slice(0, 2048) : "";
 }
 
 /** Draft fields from a JobPosting node; missing data stays empty. */

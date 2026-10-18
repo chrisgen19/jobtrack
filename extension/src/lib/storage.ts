@@ -19,8 +19,10 @@ export const pendingSelectionItem = storage.defineItem<{ tabId: number; text: st
   { fallback: null },
 );
 
-/** Unsaved review forms by page URL (session: cleared when the browser closes). See drafts.ts. */
-export const draftsItem = storage.defineItem<Record<string, { values: DraftValues; updatedAt: number }>>(
-  "session:drafts",
-  { fallback: {} },
-);
+/**
+ * Unsaved review forms by page URL (session: cleared when the browser closes). See drafts.ts.
+ * `guessed` lists the prefilled fields not reviewed yet; drafts stored before it existed lack it.
+ */
+export const draftsItem = storage.defineItem<
+  Record<string, { values: DraftValues; guessed?: (keyof DraftValues)[]; updatedAt: number }>
+>("session:drafts", { fallback: {} });

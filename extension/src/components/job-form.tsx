@@ -57,9 +57,10 @@ export function JobForm({
 
   // Keep this page's draft once the user changed something; untouched forms
   // are never stored, so opening the popup elsewhere can't replace a draft.
+  // The fields still flagged as guesses go with it, so reopening keeps them.
   useEffect(() => {
-    if (pageUrl && edited) scheduleDraftSave(pageUrl, values);
-  }, [pageUrl, values, edited]);
+    if (pageUrl && edited) scheduleDraftSave(pageUrl, { values, guessed: [...guessed] });
+  }, [pageUrl, values, guessed, edited]);
 
   // A menu selection arrives as a prop; apply it once, while rendering, then let the parent clear it.
   const [appliedIncoming, setAppliedIncoming] = useState<string | null>(null);
