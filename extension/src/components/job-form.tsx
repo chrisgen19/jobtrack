@@ -6,11 +6,14 @@ import { firstErrors, toPayload, validateDraft, type FieldErrors } from "@/lib/p
 import { flushDraftSave, removeDraft, scheduleDraftSave } from "@/lib/drafts";
 import { DuplicateWarning } from "./duplicate-warning";
 import { Button, Notice } from "./fields";
-import { ApplySection, BasicsSection, DetailsSection, SalarySection } from "./job-form-sections";
+import { ApplySection } from "./form/apply-section";
+import { BasicsSection } from "./form/basics-section";
+import { DetailsSection } from "./form/details-section";
+import { SalarySection } from "./form/salary-section";
 
 const STATUS_NOTICE: Record<PageStatus, string | null> = {
   found: null,
-  partial: "This page has no structured job data, so some fields may be missing. Check them before saving.",
+  partial: "Some details couldn't be read from this page, so fields may be missing. Check them before saving.",
   unreadable:
     "This page can't be read (browser pages and some sites block extensions). Fill in the details yourself.",
 };
@@ -20,12 +23,14 @@ type Props = {
   initial: DraftValues;
   pageUrl: string | null;
   status: PageStatus;
+  guessed: (keyof DraftValues)[];
   onSaved: (result: ExtensionSaveResult, title: string) => void;
   onUnauthorized: (message: string) => void;
 };
 
-export function JobForm({ me, initial, pageUrl, status, onSaved, onUnauthorized }: Props) {
+export function JobForm({ me, initial, pageUrl, status, guessed: initialGuessed, onSaved, onUnauthorized }: Props) {
   const [values, setValues] = useState(initial);
+  const [guessed, setGuessed] = useState<ReadonlySet<keyof DraftValues>>(() => new Set(initialGuessed));
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -50,6 +55,12 @@ export function JobForm({ me, initial, pageUrl, status, onSaved, onUnauthorized 
   const set = <K extends keyof DraftValues>(key: K, value: DraftValues[K]) => {
     setEdited(true);
     setValues((current) => ({ ...current, [key]: value }));
+    setGuessed((current) => {
+      if (!current.has(key)) return current;
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
   };
 
   async function submit(event: FormEvent) {
@@ -72,7 +83,7 @@ export function JobForm({ me, initial, pageUrl, status, onSaved, onUnauthorized 
     }
   }
 
-  const sectionProps = { values, errors, set };
+  const sectionProps = { values, errors, guessed, set };
   return (
     <form onSubmit={submit} noValidate className="flex flex-col">
       <div className="flex flex-col gap-2.5 px-4 py-3">

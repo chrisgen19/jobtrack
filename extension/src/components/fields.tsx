@@ -7,19 +7,33 @@ export function Field({
   id,
   label,
   error,
+  guessed = false,
   children,
   className = "",
 }: {
   id: string;
   label: string;
   error?: string;
+  /** The prefilled value was inferred, not read from the posting: ask the user to check it. */
+  guessed?: boolean;
   children: ReactNode;
   className?: string;
 }) {
   return (
     <div className={`flex min-w-0 flex-col gap-1 ${className}`}>
-      <label htmlFor={id} className="text-[10px] font-bold tracking-[0.6px] text-subtle uppercase">
+      <label
+        htmlFor={id}
+        className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.6px] text-subtle uppercase"
+      >
         {label}
+        {guessed ? (
+          <span
+            title="Guessed from the page text. Check it before saving."
+            className="rounded-[5px] bg-[#fdf6ea] px-1 py-px text-[9px] tracking-normal text-warning normal-case"
+          >
+            check
+          </span>
+        ) : null}
       </label>
       {children}
       {error ? (

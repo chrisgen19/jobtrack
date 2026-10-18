@@ -1,21 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildDraft } from "./build-draft";
-import type { PageSnapshot } from "./snapshot";
+import { mergeLayers } from "./merge";
+import { snapshotOf as snapshot } from "./snapshot-fixture";
 import { sourceFromUrl } from "./source";
 import { htmlToText } from "./text";
-
-function snapshot(overrides: Partial<PageSnapshot>): PageSnapshot {
-  return {
-    url: "https://example.com/job",
-    canonicalUrl: null,
-    title: "",
-    h1: null,
-    meta: {},
-    jsonLd: [],
-    selection: "",
-    ...overrides,
-  };
-}
 
 const posting = {
   "@context": "https://schema.org",
@@ -39,15 +27,14 @@ const posting = {
 
 describe("buildDraft", () => {
   it("reads a JobPosting nested in @graph", () => {
-    const { draft, foundJobPosting } = buildDraft(
+    const { draft, status } = buildDraft(
       snapshot({
-        url: "https://www.linkedin.com/jobs/view/123?trk=feed",
-        canonicalUrl: "https://www.linkedin.com/jobs/view/123",
-        meta: { "og:site_name": "LinkedIn" },
+        url: "https://careers.globex.test/jobs/123?trk=feed",
+        canonicalUrl: "https://careers.globex.test/jobs/123",
         jsonLd: ["{not json", JSON.stringify({ "@graph": [{ "@type": "WebPage" }, posting] })],
       }),
     );
-    expect(foundJobPosting).toBe(true);
+    expect(status).toBe("found");
     expect(draft).toMatchObject({
       title: "Senior Frontend Engineer",
       companyName: "Globex & Co",
@@ -58,8 +45,8 @@ describe("buildDraft", () => {
       salaryMax: "120000",
       currency: "PHP",
       salaryPeriod: "MONTHLY",
-      source: "LinkedIn",
-      postingUrl: "https://www.linkedin.com/jobs/view/123",
+      source: "Company website",
+      postingUrl: "https://careers.globex.test/jobs/123",
     });
     expect(draft.description).toBe("Build things.\n\n• React\n• TypeScript");
   });
@@ -72,7 +59,7 @@ describe("buildDraft", () => {
         meta: { "og:site_name": "JobStreet" },
       }),
     );
-    expect(board.foundJobPosting).toBe(false);
+    expect(board.status).toBe("partial");
     expect(board.draft).toMatchObject({ title: "Data Analyst", companyName: "", source: "JobStreet" });
 
     const careers = buildDraft(
@@ -91,6 +78,7 @@ describe("buildDraft", () => {
       source: "Company website",
       description: "Join our team.",
     });
+    expect(careers.guessed).toContain("companyName");
   });
 
   it("prefers a meaningful text selection as the description", () => {
@@ -111,7 +99,7 @@ describe("buildDraft", () => {
             title: "Support",
             hiringOrganization: "Initech",
             employmentType: "SEASONAL",
-            baseSalary: { currency: "USD", value: { value: 25, unitText: "HOUR" } },
+            baseSalary: { value: { value: 25, unitText: "HOUR", currency: "usd" } },
           }),
         ],
       }),
@@ -121,8 +109,41 @@ describe("buildDraft", () => {
       employmentType: "",
       salaryMin: "25",
       salaryMax: "",
+      currency: "USD",
       salaryPeriod: "HOURLY",
     });
+  });
+
+  it("guesses pay and work setup from a generic page's text and flags them", () => {
+    const body = [
+      "<p>We are hiring a backend developer to own our billing services and APIs.</p>",
+      "<p>You will work with product and finance on invoicing, payment retries and reporting.</p>",
+      "<p>This is a hybrid work setup with two office days in Ortigas each week.</p>",
+      "<p>Salary: ₱50,000 - ₱65,000 per month plus HMO.</p>",
+    ].join("");
+    const { draft, guessed } = buildDraft(
+      snapshot({ url: "https://careers.acme.test/backend", h1: "Backend Developer", mainHtml: body }),
+    );
+    expect(draft).toMatchObject({
+      title: "Backend Developer",
+      workArrangement: "HYBRID",
+      salaryMin: "50000",
+      salaryMax: "65000",
+      currency: "PHP",
+      salaryPeriod: "MONTHLY",
+    });
+    expect(guessed).toEqual(expect.arrayContaining(["workArrangement", "salaryMin", "salaryPeriod"]));
+  });
+});
+
+describe("mergeLayers", () => {
+  it("takes the salary fields from one layer together", () => {
+    const merged = mergeLayers([
+      { source: "site", values: { title: "A", currency: "AUD" } },
+      { source: "json-ld", values: { title: "B", salaryMin: "100", salaryPeriod: "HOURLY", currency: "USD" } },
+    ]);
+    expect(merged.values).toMatchObject({ title: "A", salaryMin: "100", salaryPeriod: "HOURLY", currency: "USD" });
+    expect(merged.sources).toMatchObject({ title: "site", salaryMin: "json-ld" });
   });
 });
 
@@ -130,6 +151,7 @@ describe("helpers", () => {
   it("maps hosts to sources", () => {
     expect(sourceFromUrl("https://boards.greenhouse.io/acme/jobs/1")).toBe("Company website");
     expect(sourceFromUrl("https://au.indeed.com/viewjob?jk=1")).toBe("Indeed");
+    expect(sourceFromUrl("https://au.seek.com/job/1")).toBe("Seek");
     expect(sourceFromUrl("not a url")).toBe("");
   });
 
