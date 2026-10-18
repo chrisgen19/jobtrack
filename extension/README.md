@@ -3,8 +3,17 @@
 Saves the job posting you're viewing to your JobTrack workspace. Open the extension on a job page and it prefills a
 review form, then saves only when you click **Save job**.
 
-- **Prefill:** schema.org `JobPosting` data (LinkedIn, JobStreet, Indeed and most applicant tracking systems publish
-  it), falling back to the page's meta tags and title. Text you highlight on the page becomes the description.
+- **Prefill**, most trusted source first:
+  1. A site adapter. It reads the page's own data or known elements on LinkedIn, JobStreet/SEEK/JobsDB, Indeed,
+     Kalibrr, OnlineJobs.ph, Greenhouse, Ashby, Lever and Workday.
+  2. schema.org `JobPosting` data.
+  3. The page's meta tags, title and main text block.
+  4. Guesses from that text: pay lines, "hybrid work setup", "fully remote".
+
+  Fields that were guessed show a **check** marker until you edit them. Text you highlight on the page becomes the
+  description.
+- **Split views:** on LinkedIn (`currentJobId`), JobStreet (`jobId`) and Indeed (`vjk`) search pages, the selected job
+  is read, and the saved link points to that job, not to the search.
 - **Duplicates:** warns when you already saved the same posting link, or the same title at the same company.
 - **Already applied:** optionally records the application with its date and pipeline stage.
 - Unsaved edits are kept per page (the 20 most recently edited) until the browser closes, so closing the popup by
@@ -45,7 +54,7 @@ creates a new key pair.
 | `pnpm ext:dev`                              | Dev build with reload (WXT opens Chrome with it when it finds a Chrome install) |
 | `pnpm ext:build`                            | Production build in `extension/.output/chrome-mv3`             |
 | `pnpm ext:zip`                              | Zip for the Chrome Web Store in `extension/.output`            |
-| `pnpm --filter @jobtrack/extension test`    | Vitest: page extraction and the connect handshake              |
+| `pnpm --filter @jobtrack/extension test`    | Vitest: parsers, site adapters, page reader (happy-dom), connect handshake |
 | `pnpm --filter @jobtrack/extension typecheck` | `wxt prepare` + `tsc`                                        |
 
 Load the build in Chrome: `chrome://extensions` → enable **Developer mode** → **Load unpacked** → choose
@@ -81,5 +90,23 @@ token on the server too. A revoked token returns 401 and the popup asks to conne
 ## Limitations
 
 - Browser pages (`chrome://`, the Chrome Web Store) and some sites block extensions; the form then starts empty.
-- Sites without `JobPosting` data give only a title and description guess; check the fields before saving.
+- Sites without an adapter or `JobPosting` data give a title, the main text block and guesses; check the fields
+  before saving.
+- Adapters depend on each site's markup and page data. LinkedIn's signed-in class names change often, and Indeed's
+  selectors are untested (it blocks automated browsers); misses fall back to the generic reader.
+
+## How extraction works
+
+`lib/read-page.ts` runs two reads in the tab:
+
+1. **The DOM reader** (`collectPageSnapshot`, isolated world). It takes the site adapter's selectors as plain
+   `executeScript` args.
+2. **The probe** (MAIN world), if the adapter has one. It reads the page's own state (SEEK's Apollo cache, Greenhouse's
+   Remix data, Ashby's `__appData`). It returns only the job's fields as JSON (at most 500 KB, 1.5 s timeout).
+
+Both functions are serialized by Chrome, so they stay self-contained. All selectors and paths ship in the package:
+nothing is fetched or evaluated remotely.
+
+`lib/extract/build-draft.ts` merges the layers (`merge.ts`). Adapters live in `lib/extract/sites/`, and parsers for
+salary, work setup and employment type in `lib/extract/parse/`.
 - Chrome only for now (WXT can also build Firefox and Edge versions; not tested).

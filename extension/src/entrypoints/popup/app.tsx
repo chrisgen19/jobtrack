@@ -58,6 +58,7 @@ export function App() {
           initial={view.initial}
           pageUrl={view.pageUrl}
           status={view.status}
+          guessed={view.guessed}
           onSaved={(result, title) => setView({ kind: "saved", result, title })}
           onUnauthorized={(notice) => setView({ kind: "connect", notice })}
         />

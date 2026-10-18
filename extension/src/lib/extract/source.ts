@@ -4,6 +4,7 @@ const SOURCES: [string, string][] = [
   ["jobstreet.com", "JobStreet"],
   ["jobstreet.com.ph", "JobStreet"],
   ["indeed.com", "Indeed"],
+  ["seek.com", "Seek"], // au.seek.com and nz.seek.com
   ["seek.com.au", "Seek"],
   ["seek.co.nz", "Seek"],
   ["remoteok.com", "RemoteOK"],

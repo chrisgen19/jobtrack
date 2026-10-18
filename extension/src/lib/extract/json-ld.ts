@@ -1,15 +1,7 @@
 import type { EmploymentType, SalaryPeriod, WorkArrangement } from "@jobtrack/shared/extension-api";
 import type { DraftValues } from "../draft";
+import { asArray, isNode, str, type Node } from "./read";
 import { htmlToText, oneLine } from "./text";
-
-type Node = Record<string, unknown>;
-
-const isNode = (value: unknown): value is Node =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-const asArray = (value: unknown): unknown[] =>
-  Array.isArray(value) ? value : value === undefined ? [] : [value];
-const str = (value: unknown): string =>
-  typeof value === "string" || typeof value === "number" ? String(value) : "";
 
 function hasType(node: Node, type: string): boolean {
   return asArray(node["@type"]).some((value) => value === type);
@@ -35,6 +27,15 @@ export function findJobPosting(scripts: string[]): Node | null {
     }
   }
   return null;
+}
+
+/**
+ * Whether a JobPosting is about the given job. Split views and in-app
+ * navigation can leave an earlier job's JSON-LD in the page, so it is only
+ * trusted there when its url, identifier or @id mentions the job ID.
+ */
+export function postingMentions(posting: Node, jobId: string): boolean {
+  return JSON.stringify([posting.url, posting.identifier, posting["@id"]]).includes(jobId);
 }
 
 const EMPLOYMENT: Record<string, EmploymentType> = {
@@ -74,17 +75,22 @@ function locationOf(posting: Node): string {
   return [...new Set(labels.filter(Boolean))].slice(0, 3).join("; ").slice(0, 120);
 }
 
+const currencyCode = (value: unknown): string =>
+  /^[A-Za-z]{3}$/.test(str(value)) ? str(value).toUpperCase() : "";
+
+/** baseSalary (or estimatedSalary): currency and unitText may sit on the amount or its value. */
 function salaryOf(posting: Node): Pick<DraftValues, "salaryMin" | "salaryMax" | "currency" | "salaryPeriod"> {
-  const salary = asArray(posting.baseSalary).find(isNode);
+  const salary = [...asArray(posting.baseSalary), ...asArray(posting.estimatedSalary)].find(isNode);
   const value = salary && isNode(salary.value) ? salary.value : null;
   const amount = (raw: unknown) => (str(raw) && Number.isFinite(Number(raw)) ? String(Number(raw)) : "");
   const min = amount(value?.minValue ?? value?.value ?? (salary && !value ? salary.value : undefined));
   const max = amount(value?.maxValue);
+  const unit = str(value?.unitText) || str(salary?.unitText);
   return {
     salaryMin: min,
     salaryMax: max && max !== min ? max : "",
-    currency: /^[A-Za-z]{3}$/.test(str(salary?.currency)) ? str(salary?.currency).toUpperCase() : "",
-    salaryPeriod: min || max ? (PERIODS[str(value?.unitText).toUpperCase()] ?? "") : "",
+    currency: currencyCode(salary?.currency) || currencyCode(value?.currency),
+    salaryPeriod: min || max ? (PERIODS[unit.toUpperCase()] ?? "") : "",
   };
 }
 

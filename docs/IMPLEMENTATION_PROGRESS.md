@@ -204,6 +204,71 @@ Verification:
 - Not verified: opening the popup from the toolbar on a real job site (Playwright cannot click the toolbar, so the
   `activeTab` grant path was not exercised end to end), Firefox/Edge builds, the CI `extension` job.
 
+## Milestone 7b: Extension v2
+
+Plan: smarter extraction (PR 1), side panel with badge, context menu and shortcut (PR 2), more fields with
+recruiter contact and follow-up (PR 3), opt-in "Improve with AI" (PR 4).
+
+PR 1, extraction engine (`feature/extension-extraction-v2`):
+
+- [x] Layered extraction (`extension/src/lib/extract/`). Sources, most trusted first:
+  1. Site adapter: page state read in the MAIN world, or known elements.
+  2. JSON-LD.
+  3. Meta tags and the page's main text block.
+  4. Guesses from that text.
+
+  The salary fields move as a group, and inferred fields show a "check" marker in the form.
+
+- [x] Site adapters:
+  - LinkedIn
+  - JobStreet/SEEK/JobsDB, from the live Apollo cache, so split-view clicks are read correctly
+  - Indeed
+  - Kalibrr (`__NEXT_DATA__`; respects `salaryShown: false`)
+  - OnlineJobs.ph (labelled blocks)
+  - Greenhouse (Remix loader data)
+  - Ashby (`__appData`; its own workplace type beats JSON-LD's TELECOMMUTE)
+  - Lever
+  - Workday (legal entity code dropped from the employer)
+
+  Workable needs no adapter: its JSON-LD is complete.
+
+- [x] Selectors and page-state paths ship in the package and reach the page only as `executeScript` args. Probes
+      return only the job's fields as JSON (500 KB cap, 1.5 s timeout).
+- [x] Split views (LinkedIn `currentJobId`, JobStreet `jobId`, Indeed `vjk`):
+  - The posting URL and the draft key are the job's own link.
+  - The search page's title and meta are ignored.
+  - JSON-LD is trusted only when it names the selected job.
+- [x] Salary parser:
+  - Currencies: ₱/PHP, RM, S$, A$, NZ$, US$, €, £. A bare `$` is resolved from the site (SEEK AU means AUD).
+  - Amounts and ranges: `k` suffix, ranges, "up to".
+  - Stated pay periods. Without one, the period is guessed from the amount and flagged.
+- [x] Pay lines in free text are only read when they mention pay and a currency or period.
+- [x] Work setup and employment type: parsed from labels, and from description phrases (hybrid/remote only, with
+      negation guards).
+- [x] JSON-LD reading:
+  - `value.currency`, a `unitText` on the amount, `estimatedSalary`.
+  - http canonical links upgraded to https on https pages.
+- [x] The form sections are split into `components/form/*`.
+
+Verification:
+
+- Extension Vitest (76 tests):
+  - Parser tables built from real SEEK/JobStreet/LinkedIn salary labels.
+  - Per-site drafts on shapes copied from live pages (2026-10-18), including a JobStreet split view with stale
+    JSON-LD.
+  - happy-dom tests that run the page collector and the MAIN-world probes after `toString()` serialization (as
+    Chrome does).
+- The minified bundle's collector and probes, run in Chromium on live pages (2026-10-18), then `buildDraft`:
+  - JobStreet PH split view, SEEK AU, LinkedIn (signed out), Kalibrr, OnlineJobs.ph, Greenhouse, Ashby, Lever,
+    Workday, Workable.
+  - Each gave the expected title, company, location, type, work setup and salary.
+- Form rendered at 380 px with the "check" markers: no horizontal overflow.
+- Not verified:
+  - Indeed (it blocks automated browsers; selectors come from public write-ups).
+  - LinkedIn signed in, including `/jobs/search` and `/jobs/collections`; those selectors are best-effort.
+  - SmartRecruiters (generic path only).
+  - The toolbar `activeTab` path, still: CDP `Extensions.triggerAction` closes headless Chromium.
+
 ## Definition of Done status
 
 | #   | Step                                                        | Status                                                                   |
