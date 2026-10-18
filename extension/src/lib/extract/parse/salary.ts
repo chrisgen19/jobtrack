@@ -1,4 +1,4 @@
-import type { SalaryPeriod } from "@jobtrack/shared/extension-api";
+import type { SalaryBasis, SalaryPeriod } from "@jobtrack/shared/extension-api";
 
 export type ParsedSalary = {
   min: string;
@@ -8,6 +8,8 @@ export type ParsedSalary = {
   period: SalaryPeriod | "";
   /** The period was inferred from the amount, not stated. */
   periodGuessed: boolean;
+  /** "gross" or "net"/"take-home" when the text says so. */
+  basis: Exclude<SalaryBasis, "UNKNOWN"> | "";
 };
 
 // Longest tokens first so "S$" wins over "$" and "PHP" over "P".
@@ -121,6 +123,7 @@ export function parseSalary(text: string, context: { host?: string } = {}): Pars
     currency,
     period: stated ?? guessPeriod(high ?? first, currency),
     periodGuessed: !stated,
+    basis: /\bgross\b/i.test(normalized) ? "GROSS" : /\bnet\b|take[- ]home/i.test(normalized) ? "NET" : "",
   };
 }
 

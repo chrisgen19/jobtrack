@@ -16,5 +16,6 @@ export async function getExtensionProfile({ user, preferences }: Workspace): Pro
     currency: preferences.currency,
     today: todayInTimeZone(preferences.timezone),
     stages,
+    followUpDays: preferences.followUpDays,
   };
 }

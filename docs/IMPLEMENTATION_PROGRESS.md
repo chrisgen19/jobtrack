@@ -319,6 +319,58 @@ Verification:
   - Granting auto-detect through Chrome's permission prompt.
   - Signed-in LinkedIn split views.
 
+PR 3, more fields, contact and to-do (`feature/extension-more-fields`, stacked on PR 2):
+
+- [x] Contract (`packages/shared/src/extension-api.ts`), additive, so v0.1 drafts still save:
+  - Fields: `referenceCode`, `salaryBasis`, `requiredSkills`, `tags`, `deadline`, `method`, `companyWebsite`,
+    `contact {name, title, email, linkedinUrl, kind}`, `followUp {type: APPLY | FOLLOW_UP, dueDate, title}`.
+  - `/me` sends `followUpDays`; the save result has `contactId` and `taskId`.
+  - New enum copies are checked against Prisma in `contract.test.ts`.
+  - `fieldErrorsFrom()` reports errors by path (`contact.email`), so the extension marks the right field.
+- [x] Server: one transaction in `src/features/extension/save.ts`:
+  - `createOpportunityInTx` (Quick Add's body; Quick Add unchanged).
+  - `setCompanyWebsiteIfEmpty`.
+  - `createOrReuseContactInTx`: reuses a contact at the company with the same LinkedIn URL or email, or by name when
+    neither is given; fills only empty details.
+  - `createTaskInTx` (createTask's body): APPLICATION or FOLLOW_UP task at 09:00 in the user's timezone, with the
+    user's task reminder.
+  - Validation: `extensionSaveSchema` (Quick Add shape and checks, plus contact and to-do). A to-do on an applied job
+    is rejected (applying already suggests a follow-up), and so is a past date.
+- [x] Connect page lists the new abilities.
+- [x] Extension:
+  - "More details" section: skills and tags as chips, deadline, reference, pay basis, company website.
+  - Contact section and to-do (in the apply box); "applied via" when applied.
+  - The saved screen names the contact and the to-do.
+  - The sections are hidden for servers without `followUpDays`.
+- [x] Extraction:
+  - JSON-LD: skills, `validThrough` as a flagged deadline, `identifier` as reference (not UUIDs), and the employer
+    website from `hiringOrganization.sameAs`/`url` (job board pages excluded).
+  - Deadlines: Kalibrr `applicationEndDate`, Greenhouse `application_deadline`, Ashby `applicationDeadline`.
+  - LinkedIn hiring-team card (signed-in selectors, unverified) and a contact email from the description (guessed,
+    no-reply skipped).
+  - Gross/net wording.
+  - The application method defaults to job board or company website by source.
+
+Verification:
+
+- Web Vitest: 153 tests, 24 files, including `tests/integration/extension-fields.test.ts`:
+  - New fields stored; a v0.1 draft still saves; a company website is never overwritten.
+  - Contact reused by LinkedIn profile across company-name spellings, not across users; missing details filled.
+  - To-do at 09:00 Asia/Manila with a 60-minute reminder.
+  - Past to-do (422), to-do on an applied job (400, `followUp`), bad contact email (400, `contact.email`); none of
+    these saved anything.
+- Extension Vitest: 96 tests (payload nesting, path errors, new JSON-LD fields, site deadlines, LinkedIn contact,
+  email guess, gross/net).
+- Real Chromium, built extension, side panel page, live LinkedIn job, API mocked:
+  - Deadline and reference prefilled, "More details" open.
+  - Skills chips, contact and to-do filled in, then saved.
+  - The captured payload nests `contact` and `followUp` (apply by the deadline).
+  - The saved screen says "with a contact and a to-do". Layout checked at 360 px.
+- Not verified:
+  - A save against the running dev server: `EXTENSION_IDS` is empty in the local `.env`. The server path is covered by
+    the integration tests.
+  - LinkedIn's signed-in hiring-team card.
+
 ## Definition of Done status
 
 | #   | Step                                                        | Status                                                                   |

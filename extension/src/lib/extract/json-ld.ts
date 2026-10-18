@@ -1,6 +1,7 @@
 import type { EmploymentType, SalaryPeriod, WorkArrangement } from "@jobtrack/shared/extension-api";
 import type { DraftValues } from "../draft";
-import { asArray, isNode, str, type Node } from "./read";
+import { asArray, dateOf, isNode, str, type Node } from "./read";
+import { isJobBoard } from "./source";
 import { htmlToText, oneLine } from "./text";
 
 function hasType(node: Node, type: string): boolean {
@@ -100,6 +101,33 @@ function workArrangementOf(posting: Node): WorkArrangement | "" {
     : "";
 }
 
+/** skills as a comma list, an array, or DefinedTerm objects; at most 30 of 40 chars. */
+function skillsOf(posting: Node): string[] {
+  const items = asArray(posting.skills).flatMap((item) =>
+    isNode(item) ? [str(item.name)] : str(item).split(/[,;\n]/),
+  );
+  const skills = items.map((item) => oneLine(item)).filter((item) => item && item.length <= 40);
+  return [...new Set(skills)].slice(0, 30);
+}
+
+/** The employer's reference (identifier.value); UUIDs and long IDs aren't useful to type or search. */
+function referenceOf(posting: Node): string {
+  const value = oneLine(isNode(posting.identifier) ? str(posting.identifier.value) : str(posting.identifier));
+  return value.length <= 40 && !/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(value) ? value : "";
+}
+
+/**
+ * The employer's own site from hiringOrganization: the first http(s) link in
+ * sameAs (one URL or a list) or url that isn't a job board company page.
+ */
+function websiteOf(organization: unknown): string {
+  if (!isNode(organization)) return "";
+  const url = [...asArray(organization.sameAs), organization.url]
+    .map(str)
+    .find((value) => /^https?:\/\//.test(value) && !isJobBoard(value));
+  return url ? url.slice(0, 2048) : "";
+}
+
 /** Draft fields from a JobPosting node; missing data stays empty. */
 export function draftFromJobPosting(posting: Node): Partial<DraftValues> {
   const organization = asArray(posting.hiringOrganization)[0];
@@ -114,6 +142,11 @@ export function draftFromJobPosting(posting: Node): Partial<DraftValues> {
     workArrangement: workArrangementOf(posting),
     employmentType: employment ?? "",
     postingUrl: /^https?:\/\//.test(str(posting.url)) ? str(posting.url) : "",
+    requiredSkills: skillsOf(posting),
+    referenceCode: referenceOf(posting),
+    companyWebsite: websiteOf(organization),
+    // validThrough is often the listing's expiry, not an application deadline: buildDraft flags it.
+    deadline: dateOf(posting.validThrough),
     ...salaryOf(posting),
   };
 }

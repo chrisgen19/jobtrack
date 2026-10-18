@@ -23,11 +23,28 @@ export const EMPLOYMENT_TYPES = [
 ] as const;
 export const SALARY_PERIODS = ["HOURLY", "DAILY", "WEEKLY", "MONTHLY", "ANNUALLY"] as const;
 export const PRIORITIES = ["LOW", "MEDIUM", "HIGH"] as const;
+export const SALARY_BASES = ["GROSS", "NET", "UNKNOWN"] as const;
+export const APPLICATION_METHODS = [
+  "COMPANY_WEBSITE",
+  "JOB_BOARD",
+  "LINKEDIN_EASY_APPLY",
+  "EMAIL",
+  "REFERRAL",
+  "RECRUITER",
+  "OTHER",
+] as const;
+export const CONTACT_KINDS = ["RECRUITER", "HIRING_MANAGER", "INTERVIEWER", "REFERRER", "OTHER"] as const;
+/** To-do created with a saved job: apply by a date, or follow up on it. */
+export const FOLLOW_UP_TYPES = ["APPLY", "FOLLOW_UP"] as const;
 
 export type WorkArrangement = (typeof WORK_ARRANGEMENTS)[number];
 export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number];
 export type SalaryPeriod = (typeof SALARY_PERIODS)[number];
 export type Priority = (typeof PRIORITIES)[number];
+export type SalaryBasis = (typeof SALARY_BASES)[number];
+export type ApplicationMethod = (typeof APPLICATION_METHODS)[number];
+export type ContactKind = (typeof CONTACT_KINDS)[number];
+export type FollowUpType = (typeof FOLLOW_UP_TYPES)[number];
 
 const text = (max: number) => z.string().trim().max(max).optional();
 
@@ -35,7 +52,32 @@ const text = (max: number) => z.string().trim().max(max).optional();
 const optionalChoice = <const T extends readonly [string, ...string[]]>(values: T) =>
   z.union([z.enum(values), z.literal("")]).optional();
 
-/** Job details the extension sends after the user reviewed them. */
+const list = (maxItems: number, maxLength: number) =>
+  z
+    .array(z.string().trim().max(maxLength))
+    .max(maxItems, { error: `At most ${maxItems} items.` })
+    .optional();
+
+/** Recruiter or hiring manager named on the posting, saved as a contact of the company. */
+export const extensionContactSchema = z.object({
+  name: z.string().trim().min(1, { error: "Enter the contact's name." }).max(120),
+  title: text(120),
+  email: text(254),
+  linkedinUrl: text(2048),
+  kind: optionalChoice(CONTACT_KINDS),
+});
+
+/** To-do for a job saved but not applied to yet. */
+export const extensionFollowUpSchema = z.object({
+  type: z.enum(FOLLOW_UP_TYPES),
+  dueDate: z.string().length(10, { error: "Choose a date." }),
+  title: text(200),
+});
+
+/**
+ * Job details the extension sends after the user reviewed them. Fields after
+ * stageId were added in extension v0.2; older extensions omit them.
+ */
 export const extensionJobDraftSchema = z.object({
   title: z.string().trim().min(1, { error: "Job title is required." }).max(160),
   companyName: z.string().trim().min(1, { error: "Company is required." }).max(120),
@@ -54,6 +96,15 @@ export const extensionJobDraftSchema = z.object({
   alreadyApplied: z.boolean().optional(),
   appliedOn: text(10),
   stageId: text(36),
+  referenceCode: text(80),
+  salaryBasis: optionalChoice(SALARY_BASES),
+  requiredSkills: list(30, 40),
+  tags: list(10, 30),
+  deadline: text(10),
+  method: optionalChoice(APPLICATION_METHODS),
+  companyWebsite: text(2048),
+  contact: extensionContactSchema.optional(),
+  followUp: extensionFollowUpSchema.optional(),
 });
 
 export type ExtensionJobDraft = z.input<typeof extensionJobDraftSchema>;
@@ -63,6 +114,8 @@ export const extensionMeSchema = z.object({
   currency: z.string(),
   today: z.string(),
   stages: z.array(z.object({ id: z.string(), name: z.string() })),
+  /** Default days until a follow-up (Settings). Missing on servers older than v0.2 of this contract. */
+  followUpDays: z.number().int().optional(),
 });
 
 export type ExtensionMe = z.infer<typeof extensionMeSchema>;
@@ -71,6 +124,8 @@ export const extensionSaveResultSchema = z.object({
   id: z.string(),
   applicationId: z.string().nullable(),
   url: z.string(),
+  contactId: z.string().nullable().optional(),
+  taskId: z.string().nullable().optional(),
 });
 
 export type ExtensionSaveResult = z.infer<typeof extensionSaveResultSchema>;
@@ -102,6 +157,20 @@ export const extensionDuplicatesSchema = z.object({
 });
 
 export type ExtensionDuplicates = z.infer<typeof extensionDuplicatesSchema>;
+
+/**
+ * Field errors keyed by path, e.g. "title" or "contact.email" (Zod's
+ * flattenError only keeps the top-level key, which loses which nested field
+ * is wrong). Issues without a path are left out.
+ */
+export function fieldErrorsFrom(error: z.ZodError): Record<string, string[]> {
+  const output: Record<string, string[]> = {};
+  for (const issue of error.issues) {
+    const key = issue.path.map(String).join(".");
+    if (key) (output[key] ??= []).push(issue.message);
+  }
+  return output;
+}
 
 /** Error body of every non-2xx extension API response. */
 export const extensionErrorSchema = z.object({

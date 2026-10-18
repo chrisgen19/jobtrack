@@ -28,6 +28,8 @@ const CHIPS = [
   ".job-details-preferences-and-skills__pill",
   ".job-details-jobs-unified-top-card__job-insight",
 ].join(", ");
+// "Meet the hiring team" / job poster card (signed-in pages; not checked against a live page).
+const HIRER = ".hirer-card__hirer-information, .jobs-poster, .message-the-recruiter";
 const DESCRIPTION = [".show-more-less-html__markup", "#job-details", ".jobs-description__content"].join(", ");
 
 /** Work setup, type and pay from the criteria list and the signed-in "chips" ("Remote", "Full-time", "₱50K/month"). */
@@ -43,6 +45,12 @@ function fromChips(criteria: string[], chips: string[], host: string) {
       salary = parseSalary(chip, { host });
   }
   return { employment, arrangement, salary };
+}
+
+/** A LinkedIn profile link without tracking parameters, or "". */
+function profileUrl(href: string | undefined): string {
+  const match = href?.match(/^https:\/\/[a-z]+\.linkedin\.com\/in\/[^/?#]+/);
+  return match ? `${match[0]}/` : "";
 }
 
 export const linkedin: SiteAdapter = {
@@ -62,8 +70,11 @@ export const linkedin: SiteAdapter = {
       location: LOCATION,
       criteria: ".description__job-criteria-item",
       chips: CHIPS,
+      contactName: `${HIRER} :is(strong, .jobs-poster__name, .base-main-card__title)`,
+      contactTitle: `${HIRER} :is(.hirer-card__hirer-job-title, .jobs-poster__headline, .base-main-card__subtitle)`,
     },
     html: { description: DESCRIPTION },
+    links: { contactProfile: `${HIRER} a[href*="/in/"]` },
   },
   extract({ url, snapshot }) {
     const { employment, arrangement, salary } = fromChips(
@@ -81,6 +92,9 @@ export const linkedin: SiteAdapter = {
         description: htmlToText(snapshot.html.description ?? ""),
         employmentType: employment,
         workArrangement: arrangement,
+        contactName: oneLine(firstText(snapshot, "contactName")).slice(0, 120),
+        contactTitle: oneLine(firstText(snapshot, "contactTitle")).slice(0, 120),
+        contactLinkedinUrl: profileUrl(snapshot.links.contactProfile),
         ...pay.values,
       },
       guessed: pay.guessed,

@@ -8,7 +8,9 @@ import { DuplicateWarning } from "./duplicate-warning";
 import { Button, Notice } from "./fields";
 import { ApplySection } from "./form/apply-section";
 import { BasicsSection } from "./form/basics-section";
+import { ContactSection } from "./form/contact-section";
 import { DetailsSection } from "./form/details-section";
+import { MoreSection } from "./form/more-section";
 import { SalarySection } from "./form/salary-section";
 
 const STATUS_NOTICE: Record<PageStatus, string | null> = {
@@ -112,6 +114,8 @@ export function JobForm({
   }
 
   const sectionProps = { values, errors, guessed, set };
+  // Older servers (contract v0.1) don't send followUpDays and would drop these fields.
+  const extras = me.followUpDays !== undefined;
   return (
     <form onSubmit={submit} noValidate className="flex flex-col">
       <div className="flex flex-col gap-2.5 px-4 py-3">
@@ -120,7 +124,9 @@ export function JobForm({
         <BasicsSection {...sectionProps} />
         <SalarySection {...sectionProps} defaultCurrency={me.currency} />
         <DetailsSection {...sectionProps} />
-        <ApplySection {...sectionProps} stages={me.stages} />
+        {extras ? <MoreSection {...sectionProps} /> : null}
+        {extras ? <ContactSection {...sectionProps} /> : null}
+        <ApplySection {...sectionProps} stages={me.stages} today={me.today} extras={extras} />
         {formError ? <Notice tone="error">{formError}</Notice> : null}
       </div>
       <div className="sticky bottom-0 flex items-center gap-2 border-t border-line-soft bg-white px-4 py-3">

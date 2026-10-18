@@ -29,6 +29,16 @@ export type ReviewView =
 
 export type FormView = Extract<ReviewView, { kind: "form" }>;
 
+/** Servers older than contract v0.2 don't send followUpDays; JobTrack's own default. */
+const DEFAULT_FOLLOW_UP_DAYS = 7;
+
+/** A YYYY-MM-DD date plus whole days (calendar arithmetic, no timezone). */
+export function addDays(date: string, days: number): string {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export type LoadOptions = {
@@ -78,10 +88,16 @@ export async function loadReview(tab: TabRef | null, options: LoadOptions = {}):
     const [me, built] = await Promise.all([getMe(), readDraft(tab, options)]);
     const pageUrl = built?.pageKey ?? null;
     const saved = pageUrl ? await loadDraft(pageUrl) : null;
+    const draft = built?.draft ?? emptyDraft();
     const defaults: DraftValues = {
-      ...(built?.draft ?? emptyDraft()),
+      ...draft,
       appliedOn: me.today,
       stageId: me.stages[0]?.id ?? "",
+      // Apply by the deadline when it's still ahead, else after the user's follow-up days.
+      followUpDate:
+        draft.deadline >= me.today
+          ? draft.deadline
+          : addDays(me.today, me.followUpDays ?? DEFAULT_FOLLOW_UP_DAYS),
     };
     return {
       kind: "form",

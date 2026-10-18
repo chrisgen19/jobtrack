@@ -1,13 +1,19 @@
 import type { ExtensionMe } from "@jobtrack/shared/extension-api";
+import type { DraftValues } from "@/lib/draft";
+import { APPLICATION_METHOD_LABEL, options } from "@/lib/labels";
 import { Field, Select, TextInput } from "../fields";
+import { FollowUpSection } from "./follow-up-section";
 import type { SectionProps } from "./section-props";
 
-export function ApplySection({
-  values,
-  errors,
-  set,
-  stages,
-}: Omit<SectionProps, "guessed"> & { stages: ExtensionMe["stages"] }) {
+type Props = Omit<SectionProps, "guessed"> & {
+  stages: ExtensionMe["stages"];
+  today: string;
+  /** The server accepts the application method and a to-do (contract v0.2). */
+  extras: boolean;
+};
+
+/** "I already applied" with date, stage and method; otherwise an optional to-do. */
+export function ApplySection({ values, errors, set, stages, today, extras }: Props) {
   return (
     <div className="flex flex-col gap-2.5 rounded-[10px] bg-surface-2 p-3">
       <label className="flex items-center gap-2 text-xs font-bold text-ink">
@@ -25,6 +31,7 @@ export function ApplySection({
             <TextInput
               id="appliedOn"
               type="date"
+              max={today}
               value={values.appliedOn}
               invalid={!!errors.appliedOn}
               onChange={(event) => set("appliedOn", event.target.value)}
@@ -38,7 +45,19 @@ export function ApplySection({
               onChange={(event) => set("stageId", event.target.value)}
             />
           </Field>
+          {extras ? (
+            <Field id="method" label="Applied via" className="col-span-2">
+              <Select
+                id="method"
+                options={options(APPLICATION_METHOD_LABEL)}
+                value={values.method}
+                onChange={(event) => set("method", event.target.value as DraftValues["method"])}
+              />
+            </Field>
+          ) : null}
         </div>
+      ) : extras ? (
+        <FollowUpSection values={values} errors={errors} set={set} today={today} />
       ) : null}
     </div>
   );

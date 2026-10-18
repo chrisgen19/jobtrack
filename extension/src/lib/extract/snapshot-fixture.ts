@@ -12,6 +12,7 @@ export function snapshotOf(overrides: Partial<PageSnapshot>): PageSnapshot {
     selection: "",
     text: {},
     html: {},
+    links: {},
     labelled: {},
     scripts: {},
     mainHtml: "",

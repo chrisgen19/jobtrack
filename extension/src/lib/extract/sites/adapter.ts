@@ -50,6 +50,7 @@ export function salaryFields(salary: ParsedSalary | null): Pick<Layer, "values" 
     salaryMax: salary.max,
     currency: salary.currency,
     salaryPeriod: salary.period,
+    salaryBasis: salary.basis,
   };
   return { values, guessed: salary.periodGuessed ? ["salaryPeriod"] : [] };
 }

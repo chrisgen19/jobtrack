@@ -335,48 +335,62 @@ export async function createOpportunity(
 
 /** createOpportunity for a workspace the caller already authenticated (extension API). */
 export async function createOpportunityForWorkspace(
-  { user, preferences }: Workspace,
+  workspace: Workspace,
   input: QuickAddInput,
 ): Promise<{ id: string; applicationId: string | null }> {
   return prisma.$transaction(async (tx) => {
-    const companyId = await findOrCreateCompany(tx, user.id, input.companyName);
-    const opportunity = await tx.jobOpportunity.create({
-      data: {
-        userId: user.id,
-        companyId,
-        ...toColumns(input, preferences.currency),
-        savedOn: parseDateOnly(input.savedOn ?? todayInTimeZone(preferences.timezone)),
-      },
-      select: { id: true },
-    });
-    if (input.tags.length) await setTags(tx, user.id, opportunity.id, input.tags);
-    await recordActivity(tx, {
-      userId: user.id,
-      opportunityId: opportunity.id,
-      type: "OPPORTUNITY_SAVED",
-      summary: `Saved ${input.title} at ${input.companyName.trim()}`,
-    });
-
-    let applicationId: string | null = null;
-    if (input.alreadyApplied && input.appliedOn) {
-      applicationId = await submitApplicationInTx(
-        tx,
-        {
-          userId: user.id,
-          timezone: preferences.timezone,
-          suggestFollowUps: preferences.suggestFollowUps,
-          followUpDays: preferences.followUpDays,
-        },
-        {
-          opportunityId: opportunity.id,
-          appliedOn: input.appliedOn,
-          stageId: input.stageId,
-          method: input.method,
-        },
-      );
-    }
-    return { id: opportunity.id, applicationId };
+    const { id, applicationId } = await createOpportunityInTx(tx, workspace, input);
+    return { id, applicationId };
   });
+}
+
+/**
+ * The body of createOpportunity inside the caller's transaction, so the
+ * extension can add a contact and a to-do atomically. Also returns the
+ * company the job was filed under.
+ */
+export async function createOpportunityInTx(
+  tx: TransactionClient,
+  { user, preferences }: Workspace,
+  input: QuickAddInput,
+): Promise<{ id: string; applicationId: string | null; companyId: string }> {
+  const companyId = await findOrCreateCompany(tx, user.id, input.companyName);
+  const opportunity = await tx.jobOpportunity.create({
+    data: {
+      userId: user.id,
+      companyId,
+      ...toColumns(input, preferences.currency),
+      savedOn: parseDateOnly(input.savedOn ?? todayInTimeZone(preferences.timezone)),
+    },
+    select: { id: true },
+  });
+  if (input.tags.length) await setTags(tx, user.id, opportunity.id, input.tags);
+  await recordActivity(tx, {
+    userId: user.id,
+    opportunityId: opportunity.id,
+    type: "OPPORTUNITY_SAVED",
+    summary: `Saved ${input.title} at ${input.companyName.trim()}`,
+  });
+
+  let applicationId: string | null = null;
+  if (input.alreadyApplied && input.appliedOn) {
+    applicationId = await submitApplicationInTx(
+      tx,
+      {
+        userId: user.id,
+        timezone: preferences.timezone,
+        suggestFollowUps: preferences.suggestFollowUps,
+        followUpDays: preferences.followUpDays,
+      },
+      {
+        opportunityId: opportunity.id,
+        appliedOn: input.appliedOn,
+        stageId: input.stageId,
+        method: input.method,
+      },
+    );
+  }
+  return { id: opportunity.id, applicationId, companyId };
 }
 
 export async function updateOpportunity(opportunityId: string, input: OpportunityInput): Promise<void> {
