@@ -1,6 +1,5 @@
 import { useState } from "react";
-import type { DraftValues } from "@/lib/draft";
-import type { FieldMark } from "./fields";
+import type { DraftValues, FieldMark, FieldMarks } from "@/lib/draft";
 
 type Key = keyof DraftValues;
 
@@ -8,9 +7,9 @@ type Key = keyof DraftValues;
  * Which prefilled fields the form flags: "check" for guesses from the page,
  * "ai" for AI suggestions. A field's mark goes away once the user edits it.
  */
-export function useFieldMarks(guessed: Key[]) {
+export function useFieldMarks(initial: FieldMarks) {
   const [marks, setMarks] = useState<ReadonlyMap<Key, FieldMark>>(
-    () => new Map(guessed.map((key) => [key, "check"])),
+    () => new Map(Object.entries(initial) as [Key, FieldMark][]),
   );
   const clear = (key: Key) =>
     setMarks((current) => {

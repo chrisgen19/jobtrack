@@ -1,10 +1,10 @@
 import type { ComponentProps, ReactNode } from "react";
+import type { FieldMark } from "@/lib/draft";
 
 const control =
   "w-full rounded-[9px] border border-line bg-white px-2.5 py-2 text-xs text-ink outline-none placeholder:text-faint focus:border-brand focus:ring-2 focus:ring-brand/15 aria-invalid:border-danger";
 
-/** Why a prefilled value needs a look: guessed from the page text, or suggested by AI. */
-export type FieldMark = "check" | "ai";
+export type { FieldMark };
 
 const MARK = {
   check: {

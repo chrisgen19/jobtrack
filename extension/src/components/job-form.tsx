@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { ExtensionMe, ExtensionSaveResult } from "@jobtrack/shared/extension-api";
 import { ApiError, saveJob } from "@/lib/api";
-import type { DraftValues, PageStatus } from "@/lib/draft";
+import type { DraftValues, PageStatus, FieldMarks } from "@/lib/draft";
 import { firstErrors, toPayload, validateDraft, type FieldErrors } from "@/lib/payload";
 import { flushDraftSave, removeDraft, scheduleDraftSave } from "@/lib/drafts";
 import { DuplicateWarning } from "./duplicate-warning";
@@ -29,7 +29,7 @@ type Props = {
   initial: DraftValues;
   pageUrl: string | null;
   status: PageStatus;
-  guessed: (keyof DraftValues)[];
+  marks: FieldMarks;
   /** Text from the "Use selection as job description" menu item, applied as an edit (side panel). */
   incomingDescription?: string | null;
   onIncomingApplied?: () => void;
@@ -42,14 +42,14 @@ export function JobForm({
   initial,
   pageUrl,
   status,
-  guessed: initialGuessed,
+  marks: initialMarks,
   incomingDescription,
   onIncomingApplied,
   onSaved,
   onUnauthorized,
 }: Props) {
   const [values, setValues] = useState(initial);
-  const { marks, clear, markAi } = useFieldMarks(initialGuessed);
+  const { marks, clear, markAi } = useFieldMarks(initialMarks);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -57,10 +57,10 @@ export function JobForm({
 
   // Keep this page's draft once the user changed something; untouched forms
   // are never stored, so opening the popup elsewhere can't replace a draft.
-  // The fields still flagged as guesses go with it, so reopening keeps them.
+  // The fields still marked go with it, so reopening keeps their marks.
   useEffect(() => {
-    if (pageUrl && edited) scheduleDraftSave(pageUrl, { values, guessed: [...guessed] });
-  }, [pageUrl, values, guessed, edited]);
+    if (pageUrl && edited) scheduleDraftSave(pageUrl, { values, marks: Object.fromEntries(marks) });
+  }, [pageUrl, values, marks, edited]);
 
   // A menu selection arrives as a prop; apply it once, while rendering, then let the parent clear it.
   const [appliedIncoming, setAppliedIncoming] = useState<string | null>(null);

@@ -101,7 +101,7 @@ export function ReviewApp({ mode, load, reloadSignal, headerActions, onClose }: 
           initial={view.initial}
           pageUrl={view.pageUrl}
           status={view.status}
-          guessed={view.guessed}
+          marks={view.marks}
           incomingDescription={selection.text}
           onIncomingApplied={selection.clear}
           onSaved={(result, title) => setView({ kind: "saved", result, title })}

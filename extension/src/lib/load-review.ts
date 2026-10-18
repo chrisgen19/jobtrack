@@ -1,6 +1,6 @@
 import type { ExtensionMe } from "@jobtrack/shared/extension-api";
 import { ApiError, getMe } from "./api";
-import { emptyDraft, type DraftValues, type PageStatus } from "./draft";
+import { emptyDraft, type DraftValues, type PageStatus, type FieldMarks } from "./draft";
 import { buildDraft, type BuiltDraft } from "./extract/build-draft";
 import { readTab, type TabRef } from "./read-page";
 import { loadDraft } from "./drafts";
@@ -23,7 +23,8 @@ export type ReviewView =
       /** Draft key: the job's own link in list views, else the page URL. */
       pageUrl: string | null;
       status: PageStatus;
-      guessed: (keyof DraftValues)[];
+      /** Prefilled fields to check: fresh guesses, or what a saved draft still had marked. */
+      marks: FieldMarks;
     }
   | { kind: "error"; message: string };
 
@@ -107,8 +108,8 @@ export async function loadReview(tab: TabRef | null, options: LoadOptions = {}):
       initial: saved ? { ...defaults, ...saved.values } : defaults,
       pageTitle: built?.draft.title ?? null,
       status: built?.status ?? "unreadable",
-      // A draft keeps flagging only the prefilled fields the user hasn't edited.
-      guessed: saved ? saved.guessed : (built?.guessed ?? []),
+      // A draft keeps marking only the prefilled fields the user hasn't edited.
+      marks: saved ? saved.marks : Object.fromEntries((built?.guessed ?? []).map((key) => [key, "check"])),
     };
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) return { kind: "connect", notice: error.message };
