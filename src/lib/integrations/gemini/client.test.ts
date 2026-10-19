@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AiProviderError, requestJobExtraction } from "./client";
+import { AiProviderError, FALLBACK_MODEL, requestJobExtraction } from "./client";
 
 const settings = vi.hoisted(() => ({
   apiKey: "test-key",
@@ -12,6 +12,17 @@ vi.mock("@/lib/env", () => ({ aiEnv: () => settings }));
 
 const fetchMock = () => vi.spyOn(globalThis, "fetch");
 const json = (body: unknown, status = 200) => Response.json(body, { status });
+const providerError = (status: number, code: string) => json({ error: { code, message: "nope" } }, status);
+/** A fetch that never answers, only rejects when its signal aborts. */
+const hang = (_url: unknown, init?: RequestInit) =>
+  new Promise<Response>((_, reject) =>
+    init?.signal?.addEventListener("abort", () => reject(init.signal?.reason)),
+  );
+const sentBody = (spy: ReturnType<typeof fetchMock>, call: number) =>
+  JSON.parse(String(spy.mock.calls[call]![1]?.body)) as {
+    model: string;
+    generation_config: { thinking_level: string };
+  };
 const answered = (text: string, status = "completed") => ({
   id: "int_1",
   status,
@@ -49,7 +60,13 @@ describe("requestJobExtraction", () => {
   it("asks the model at low thinking for JSON matching the schema, without storing it", async () => {
     const spy = fetchMock().mockResolvedValue(json(answered(JSON.stringify(extraction))));
     const result = await requestJobExtraction("<page_text>x</page_text>");
-    expect(result).toEqual({ output: extraction, stopReason: "completed", inputTokens: 10, outputTokens: 7 });
+    expect(result).toEqual({
+      output: extraction,
+      stopReason: "completed",
+      inputTokens: 10,
+      outputTokens: 7,
+      model: "gemini-3.8-flash",
+    });
 
     const [url, init] = spy.mock.calls[0]!;
     expect(url).toBe("https://generativelanguage.googleapis.com/v1beta/interactions");
@@ -93,23 +110,91 @@ describe("requestJobExtraction", () => {
   });
 
   it("sorts provider errors into busy, config and rejected", async () => {
-    const error = (status: number, code: string) => json({ error: { code, message: "nope" } }, status);
-    const cases: [Response, AiProviderError["kind"]][] = [
-      [error(429, "rate_limit_exceeded"), "busy"],
-      [error(503, "service_unavailable"), "busy"],
-      [error(504, "deadline_exceeded"), "busy"],
-      [error(401, "authentication"), "config"],
-      [error(402, "payment_required"), "config"],
-      [error(404, "model_not_found"), "config"],
-      [error(400, "failed_precondition"), "config"],
-      [error(400, "invalid_request"), "rejected"],
+    const cases: [number, string, AiProviderError["kind"]][] = [
+      [429, "rate_limit_exceeded", "busy"],
+      [503, "service_unavailable", "busy"],
+      [504, "deadline_exceeded", "busy"],
+      [401, "authentication", "config"],
+      [402, "payment_required", "config"],
+      [404, "model_not_found", "config"],
+      [400, "failed_precondition", "config"],
+      [400, "invalid_request", "rejected"],
     ];
-    for (const [response, kind] of cases) {
-      fetchMock().mockResolvedValueOnce(response);
-      await expect(requestJobExtraction("m")).rejects.toMatchObject({ name: "AiProviderError", kind });
+    for (const [status, code, kind] of cases) {
+      // A fresh response per call: 429 and 503 are asked again on the fallback model.
+      fetchMock().mockImplementation(async () => providerError(status, code));
+      await expect(requestJobExtraction("m")).rejects.toMatchObject({
+        name: "AiProviderError",
+        kind,
+        status,
+      });
     }
-    fetchMock().mockRejectedValueOnce(new TypeError("fetch failed"));
+    fetchMock().mockRejectedValue(new TypeError("fetch failed"));
     await expect(requestJobExtraction("m")).rejects.toMatchObject({ kind: "busy" });
+  });
+
+  it("asks the fallback model once when the model is overloaded or rate limited", async () => {
+    for (const [status, code] of [
+      [503, "service_unavailable"],
+      [429, "rate_limit_exceeded"],
+    ] as const) {
+      const spy = fetchMock();
+      spy
+        .mockClear()
+        .mockResolvedValueOnce(providerError(status, code))
+        .mockResolvedValueOnce(json(answered(JSON.stringify(extraction))));
+      expect(await requestJobExtraction("m")).toMatchObject({ output: extraction, model: FALLBACK_MODEL });
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(sentBody(spy, 0).model).toBe("gemini-3.8-flash");
+      expect(sentBody(spy, 1)).toMatchObject({
+        model: "gemini-3.5-flash-lite",
+        generation_config: { thinking_level: "minimal" },
+      });
+    }
+  });
+
+  it("doesn't fall back on other errors, and reports the fallback's own failure", async () => {
+    const spy = fetchMock();
+    for (const [status, code] of [
+      [500, "internal"],
+      [504, "deadline_exceeded"],
+      [401, "authentication"],
+      [400, "invalid_request"],
+    ] as const) {
+      spy.mockClear().mockImplementation(async () => providerError(status, code));
+      await expect(requestJobExtraction("m")).rejects.toMatchObject({ status });
+      expect(spy).toHaveBeenCalledTimes(1);
+    }
+
+    spy
+      .mockClear()
+      .mockResolvedValueOnce(providerError(503, "service_unavailable"))
+      .mockResolvedValueOnce(providerError(404, "model_not_found"));
+    await expect(requestJobExtraction("m")).rejects.toMatchObject({ kind: "config", status: 404 });
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports a timeout as its own kind, with one deadline across both models", async () => {
+    settings.timeoutMs = 50;
+    try {
+      const spy = fetchMock().mockImplementation(hang);
+      await expect(requestJobExtraction("m")).rejects.toMatchObject({
+        name: "AiProviderError",
+        kind: "timeout",
+      });
+      expect(spy).toHaveBeenCalledTimes(1); // a timeout isn't asked again
+
+      spy
+        .mockClear()
+        .mockResolvedValueOnce(providerError(503, "service_unavailable"))
+        .mockImplementation(hang);
+      const started = performance.now();
+      await expect(requestJobExtraction("m")).rejects.toMatchObject({ kind: "timeout" });
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(performance.now() - started).toBeLessThan(1_000);
+    } finally {
+      settings.timeoutMs = 20_000;
+    }
   });
 
   it("rethrows when the caller aborts", async () => {

@@ -99,13 +99,16 @@ export async function suggestJobFields(
       kind: error.kind,
       error: errorMessage(error),
     });
-    return error.kind === "config"
-      ? fail(503, "AI suggestions aren't available right now.")
-      : fail(503, "The AI service is busy. Try again in a minute.");
+    if (error.kind === "config") return fail(503, "AI suggestions aren't available right now.");
+    if (error.kind === "timeout") {
+      return fail(503, "The AI service took too long to answer. Try again in a minute.");
+    }
+    return fail(503, "The AI service is busy. Try again in a minute.");
   }
   await recordTokens(user.id, today, response.inputTokens, response.outputTokens);
   logger.info("ai suggestions: answered", {
     userId: user.id,
+    model: response.model,
     stopReason: response.stopReason,
     // Nested: the logger redacts keys that contain "token".
     usage: { input: response.inputTokens, output: response.outputTokens },
@@ -113,7 +116,8 @@ export async function suggestJobFields(
   if (!response.output) return fail(422, "Couldn't suggest details for this page. Fill them in yourself.");
 
   const suggestions = toSuggestions(response.output, today);
-  await cacheSuggestions(user.id, cacheKey, suggestions);
+  // The key names the configured model: a fallback answer under it would stand in for a week.
+  if (response.model === env.model) await cacheSuggestions(user.id, cacheKey, suggestions);
   const remainingToday = Math.max(0, env.dailyRequestsPerUser - used);
   return {
     ok: true,

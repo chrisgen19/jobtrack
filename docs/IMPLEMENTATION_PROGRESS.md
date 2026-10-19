@@ -381,8 +381,9 @@ PR 4, opt-in "Improve with AI" (`feature/extension-ai-suggestions`, stacked on P
   - Structured output via `response_format` with the JSON Schema from `z.toJSONSchema(aiExtractionSchema)` (no
     `$schema` key), and the answer re-parsed with the same Zod schema.
   - `store: false`, no tools, `max_output_tokens` 2000, `thinking_level` "minimal" on Flash-Lite and "low" otherwise,
-    the timeout from env, no retries.
-  - HTTP errors are sorted into busy (429, 408, 5xx, network, timeout), config (401, 402, 403, 404,
+    the timeout from env as one deadline for the whole request. A 429 or 503 is asked once more on
+    `gemini-3.5-flash-lite` (`FALLBACK_MODEL`, added 2026-10-20, see below).
+  - HTTP errors are sorted into busy (429, 408, 5xx, network), timeout, config (401, 402, 403, 404,
     `failed_precondition`) and rejected. A status other than `completed` (for example `incomplete` at the token
     limit) or output that doesn't match the schema means "no answer". Thinking tokens count as output tokens.
   - The key needs a Google project with billing enabled (paid tier): free-tier prompts are used to improve Google's
@@ -439,6 +440,21 @@ Verification:
   - A real Gemini call: no API key on this machine. Run one posting end to end after setting `GEMINI_API_KEY`
     locally.
   - The Settings page in a browser: the running dev server needs a restart to load the regenerated Prisma client.
+
+Fix, "The AI service is busy" in production (`bugfix/ai-fallback-and-timeout-message`, 2026-10-20):
+
+- [x] Cause, from the Coolify `web` logs: `gemini-3.8-flash` answered 503 ("high demand") or took longer than the
+      20 s `AI_TIMEOUT_MS`, and both showed the same "busy" message.
+- [x] Benchmark of the real prompt and schema, 4 postings with known answers, 3 runs each: `gemini-3.8-flash` median
+      26 s (3 of 12 within 20 s), `gemini-3.6-flash` 3 s, `gemini-3.5-flash-lite` 2.6 s and no failures. Accuracy was
+      near equal; Flash-Lite named the recruitment agency instead of the employer on the agency posting.
+- [x] Production env: `AI_MODEL=gemini-3.6-flash`, `AI_TIMEOUT_MS=45000`.
+- [x] On a 429 or 503 the client asks `gemini-3.5-flash-lite` once, within the same deadline, and logs the switch.
+      A fallback answer isn't cached, since the cache key names the configured model.
+- [x] A timeout is its own error kind, shown as "The AI service took too long to answer. Try again in a minute."
+- Verification: web Vitest 175 tests, 27 files (`gemini/client.test.ts`: fallback on 429/503 only, the fallback's
+  own error, timeout kind and the shared deadline; `extension-ai.test.ts`: both messages, fallback answer not cached).
+  Typecheck and lint pass. Not verified: a real fallback call in production.
 
 ## Definition of Done status
 
