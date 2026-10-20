@@ -165,7 +165,8 @@ async function interact(
  * offered, so injected text in the posting can only change suggestions the
  * user reviews, and `store: false` keeps Google from storing the interaction
  * for later retrieval. When the model is overloaded or rate limited, asks
- * FALLBACK_MODEL once, within the same AI_TIMEOUT_MS deadline.
+ * FALLBACK_MODEL once (unless it is the model), within the same AI_TIMEOUT_MS
+ * deadline.
  */
 export async function requestJobExtraction(
   userMessage: string,
@@ -178,6 +179,8 @@ export async function requestJobExtraction(
     return await interact(env.model, attempt);
   } catch (error) {
     if (!(error instanceof AiProviderError) || !FALLBACK_STATUSES.has(error.status ?? 0)) throw error;
+    // Asking the same model again at once would only repeat its 429 or 503.
+    if (env.model === FALLBACK_MODEL) throw error;
     logger.warn("ai suggestions: model unavailable, asking the fallback", {
       model: env.model,
       fallback: FALLBACK_MODEL,

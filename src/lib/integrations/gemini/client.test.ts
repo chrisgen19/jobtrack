@@ -174,6 +174,23 @@ describe("requestJobExtraction", () => {
     expect(spy).toHaveBeenCalledTimes(2);
   });
 
+  it("doesn't ask the fallback when it is the configured model", async () => {
+    settings.model = FALLBACK_MODEL;
+    try {
+      const spy = fetchMock();
+      for (const [status, code] of [
+        [503, "service_unavailable"],
+        [429, "rate_limit_exceeded"],
+      ] as const) {
+        spy.mockClear().mockImplementation(async () => providerError(status, code));
+        await expect(requestJobExtraction("m")).rejects.toMatchObject({ kind: "busy", status });
+        expect(spy).toHaveBeenCalledTimes(1);
+      }
+    } finally {
+      settings.model = "gemini-3.8-flash";
+    }
+  });
+
   it("reports a timeout as its own kind, with one deadline across both models", async () => {
     settings.timeoutMs = 50;
     try {

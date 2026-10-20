@@ -450,10 +450,12 @@ Fix, "The AI service is busy" in production (`bugfix/ai-fallback-and-timeout-mes
       near equal; Flash-Lite named the recruitment agency instead of the employer on the agency posting.
 - [x] Production env: `AI_MODEL=gemini-3.6-flash`, `AI_TIMEOUT_MS=45000`.
 - [x] On a 429 or 503 the client asks `gemini-3.5-flash-lite` once, within the same deadline, and logs the switch.
+      Not when it is already `AI_MODEL`: an instant retry on the same model would only repeat the error.
       A fallback answer isn't cached, since the cache key names the configured model.
 - [x] A timeout is its own error kind, shown as "The AI service took too long to answer. Try again in a minute."
-- Verification: web Vitest 175 tests, 27 files (`gemini/client.test.ts`: fallback on 429/503 only, the fallback's
-  own error, timeout kind and the shared deadline; `extension-ai.test.ts`: both messages, fallback answer not cached).
+- Verification: web Vitest 176 tests, 27 files (`gemini/client.test.ts`: fallback on 429/503 only, not when it is
+  `AI_MODEL`, the fallback's own error, timeout kind and the shared deadline; `extension-ai.test.ts`: both messages,
+  fallback answer not cached).
   Typecheck and lint pass. Not verified: a real fallback call in production.
 
 ## Definition of Done status
