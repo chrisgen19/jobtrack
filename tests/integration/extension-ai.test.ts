@@ -81,9 +81,13 @@ describe("extension: Improve with AI", () => {
     await resetDatabase();
     vi.mocked(ai.aiSettings).mockReturnValue(settings);
     vi.mocked(ai.isAiConfigured).mockReturnValue(true);
-    model
-      .mockReset()
-      .mockResolvedValue({ output: answer, stopReason: "completed", inputTokens: 1200, outputTokens: 180 });
+    model.mockReset().mockResolvedValue({
+      output: answer,
+      stopReason: "completed",
+      inputTokens: 1200,
+      outputTokens: 180,
+      model: settings.model,
+    });
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -176,8 +180,16 @@ describe("extension: Improve with AI", () => {
 
   it("gives the request back on a provider error, and counts a cut-off answer", async () => {
     const { user, token } = await connectedUser();
-    model.mockRejectedValueOnce(new ai.AiProviderError("busy", "overloaded"));
-    expect((await extract(token, {})).status).toBe(503);
+    model.mockRejectedValueOnce(new ai.AiProviderError("busy", "overloaded", 503));
+    const busy = await extract(token, {});
+    expect(busy.status).toBe(503);
+    expect((await busy.json()).error).toBe("The AI service is busy. Try again in a minute.");
+    model.mockRejectedValueOnce(
+      new ai.AiProviderError("timeout", "The operation was aborted due to timeout"),
+    );
+    const slow = await extract(token, {});
+    expect(slow.status).toBe(503);
+    expect((await slow.json()).error).toBe("The AI service took too long to answer. Try again in a minute.");
     expect((await usage(user.id))?.requests).toBe(0);
 
     model.mockResolvedValueOnce({
@@ -185,9 +197,30 @@ describe("extension: Improve with AI", () => {
       stopReason: "incomplete",
       inputTokens: 900,
       outputTokens: 5,
+      model: settings.model,
     });
     expect((await extract(token, {})).status).toBe(422);
     expect((await usage(user.id))?.requests).toBe(1);
+  });
+
+  it("returns a fallback model's answer without caching it", async () => {
+    const { user, token } = await connectedUser();
+    model.mockResolvedValueOnce({
+      output: answer,
+      stopReason: "completed",
+      inputTokens: 1100,
+      outputTokens: 120,
+      model: ai.FALLBACK_MODEL,
+    });
+    const first = await extract(token, {});
+    expect(first.status).toBe(200);
+    expect(await first.json()).toMatchObject({ cached: false, suggestions: { title: "Backend Developer" } });
+    expect(await prisma.aiExtractionCache.count({ where: { userId: user.id } })).toBe(0);
+
+    // The next click asks again, and the configured model's answer is cached.
+    expect((await (await extract(token, {})).json()).cached).toBe(false);
+    expect(model).toHaveBeenCalledTimes(2);
+    expect(await prisma.aiExtractionCache.count({ where: { userId: user.id } })).toBe(1);
   });
 
   it("rejects short text and never logs the posting", async () => {

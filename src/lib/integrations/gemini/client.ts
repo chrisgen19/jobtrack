@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { aiExtractionSchema, SYSTEM_PROMPT, type AiExtraction } from "@/features/extension/ai/prompt";
 import { aiEnv } from "@/lib/env";
+import { logger } from "@/lib/logger";
 
 /**
  * Minimal Gemini Interactions API client over fetch, for "Improve with AI".
@@ -9,6 +10,16 @@ import { aiEnv } from "@/lib/env";
  */
 
 const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
+
+/**
+ * Asked once when the main model is overloaded or rate limited. In a
+ * 2026-10-20 benchmark it answered every call in about 3 s while the Flash
+ * models were returning 503s, with near-equal accuracy.
+ */
+export const FALLBACK_MODEL = "gemini-3.5-flash-lite";
+
+/** Overloaded (503) and rate limited (429): this model can't take it now, another one might. */
+const FALLBACK_STATUSES = new Set([429, 503]);
 
 /** The structured output is a few hundred tokens; this leaves room (thinking included) without risking a runaway. */
 const MAX_OUTPUT_TOKENS = 2_000;
@@ -22,14 +33,16 @@ const OUTPUT_SCHEMA = (() => {
 
 /**
  * A provider failure, sorted by what the caller should do: "busy" (rate
- * limit, overload, timeout, network: try again later), "config" (bad or
- * revoked key, unknown model, billing: an operator problem) or "rejected"
- * (the request itself was refused, e.g. too long).
+ * limit, overload, network: try again later), "timeout" (no answer within
+ * AI_TIMEOUT_MS), "config" (bad or revoked key, unknown model, billing: an
+ * operator problem) or "rejected" (the request itself was refused, e.g. too
+ * long). `status` is Gemini's HTTP status, when it answered.
  */
 export class AiProviderError extends Error {
   constructor(
-    readonly kind: "busy" | "config" | "rejected",
+    readonly kind: "busy" | "timeout" | "config" | "rejected",
     message: string,
+    readonly status?: number,
   ) {
     super(message);
     this.name = "AiProviderError";
@@ -42,6 +55,8 @@ export type ExtractionResult = {
   stopReason: string | null;
   inputTokens: number;
   outputTokens: number;
+  /** The model that answered: the configured one, or FALLBACK_MODEL. */
+  model: string;
 };
 
 type Interaction = {
@@ -70,11 +85,11 @@ async function providerError(response: Response): Promise<AiProviderError> {
   const code = body.error?.code ?? `http_${response.status}`;
   const message = `${code}: ${body.error?.message ?? `Gemini API error ${response.status}`}`;
   const { status } = response;
-  if (status === 429 || status === 408 || status >= 500) return new AiProviderError("busy", message);
+  if (status === 429 || status === 408 || status >= 500) return new AiProviderError("busy", message, status);
   if ([401, 402, 403, 404].includes(status) || CONFIG_CODES.has(code)) {
-    return new AiProviderError("config", message);
+    return new AiProviderError("config", message, status);
   }
-  return new AiProviderError("rejected", message);
+  return new AiProviderError("rejected", message, status);
 }
 
 /** The model's text from its output steps (thought steps are skipped). */
@@ -94,46 +109,44 @@ function parseOutput(text: string): AiExtraction | null {
   }
 }
 
+type Attempt = { apiKey: string; userMessage: string; deadline: AbortSignal; signal?: AbortSignal };
+
 /**
- * Asks the model for the posting's fields as structured JSON. No tools are
- * offered, so injected text in the posting can only change suggestions the
- * user reviews, and `store: false` keeps Google from storing the interaction
- * for later retrieval. Flash-Lite models think at "minimal" (field extraction
+ * One call to `model`. Flash-Lite models think at "minimal" (field extraction
  * needs little reasoning); others at "low", the lowest level every Flash and
  * Pro model accepts.
  */
-export async function requestJobExtraction(
-  userMessage: string,
-  signal?: AbortSignal,
+async function interact(
+  model: string,
+  { apiKey, userMessage, deadline, signal }: Attempt,
 ): Promise<ExtractionResult> {
-  const env = aiSettings();
-  if (!env) throw new AiProviderError("config", "GEMINI_API_KEY is not set.");
-  let response: Response;
+  let interaction: Interaction;
   try {
-    response = await fetch(INTERACTIONS_URL, {
+    const response = await fetch(INTERACTIONS_URL, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": env.apiKey },
+      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
-        model: env.model,
+        model,
         system_instruction: SYSTEM_PROMPT,
         input: userMessage,
         store: false,
         generation_config: {
           max_output_tokens: MAX_OUTPUT_TOKENS,
-          thinking_level: env.model.includes("flash-lite") ? "minimal" : "low",
+          thinking_level: model.includes("flash-lite") ? "minimal" : "low",
         },
         response_format: { type: "text", mime_type: "application/json", schema: OUTPUT_SCHEMA },
       }),
-      signal: AbortSignal.any([AbortSignal.timeout(env.timeoutMs), ...(signal ? [signal] : [])]),
+      signal: AbortSignal.any([deadline, ...(signal ? [signal] : [])]),
     });
+    if (!response.ok) throw await providerError(response);
+    interaction = (await response.json()) as Interaction;
   } catch (error) {
     // The caller gave up (client went away): not a provider problem.
-    if (signal?.aborted) throw error;
-    throw new AiProviderError("busy", error instanceof Error ? error.message : "Gemini request failed.");
+    if (error instanceof AiProviderError || signal?.aborted) throw error;
+    const message = error instanceof Error ? error.message : "Gemini request failed.";
+    throw new AiProviderError(deadline.aborted ? "timeout" : "busy", message);
   }
-  if (!response.ok) throw await providerError(response);
 
-  const interaction = (await response.json()) as Interaction;
   const usage = interaction.usage ?? {};
   const status = interaction.status ?? null;
   const output = status === "completed" ? parseOutput(outputText(interaction)) : null;
@@ -143,5 +156,36 @@ export async function requestJobExtraction(
     inputTokens: usage.total_input_tokens ?? 0,
     // Thinking tokens are billed as output.
     outputTokens: (usage.total_output_tokens ?? 0) + (usage.total_thought_tokens ?? 0),
+    model,
   };
+}
+
+/**
+ * Asks the model for the posting's fields as structured JSON. No tools are
+ * offered, so injected text in the posting can only change suggestions the
+ * user reviews, and `store: false` keeps Google from storing the interaction
+ * for later retrieval. When the model is overloaded or rate limited, asks
+ * FALLBACK_MODEL once (unless it is the model), within the same AI_TIMEOUT_MS
+ * deadline.
+ */
+export async function requestJobExtraction(
+  userMessage: string,
+  signal?: AbortSignal,
+): Promise<ExtractionResult> {
+  const env = aiSettings();
+  if (!env) throw new AiProviderError("config", "GEMINI_API_KEY is not set.");
+  const attempt = { apiKey: env.apiKey, userMessage, deadline: AbortSignal.timeout(env.timeoutMs), signal };
+  try {
+    return await interact(env.model, attempt);
+  } catch (error) {
+    if (!(error instanceof AiProviderError) || !FALLBACK_STATUSES.has(error.status ?? 0)) throw error;
+    // Asking the same model again at once would only repeat its 429 or 503.
+    if (env.model === FALLBACK_MODEL) throw error;
+    logger.warn("ai suggestions: model unavailable, asking the fallback", {
+      model: env.model,
+      fallback: FALLBACK_MODEL,
+      error: error.message,
+    });
+    return interact(FALLBACK_MODEL, attempt);
+  }
 }
